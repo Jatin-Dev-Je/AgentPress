@@ -1,0 +1,12 @@
+{
+  "id": "echo",
+  "name": "Echo",
+  "version": "0.1.0",
+  "description": "Minimal MCP stdio example plugin",
+  "entrypoint": "main.py",
+  "mcp": {
+    "transport": "stdio"
+  },
+  "isolation": "shared",
+  "config_schema": null
+}

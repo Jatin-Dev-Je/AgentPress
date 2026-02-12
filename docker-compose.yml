@@ -1,0 +1,71 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      - AGENTPRESS_PLUGINS_DIR=/plugins/installed
+      - AGENTPRESS_PLUGIN_TIMEOUT_SECONDS=30
+      - AGENTPRESS_DATABASE_URL=postgresql+asyncpg://agentpress:agentpress@postgres:5432/agentpress
+      - AGENTPRESS_OLLAMA_BASE_URL=http://ollama:11434
+      - AGENTPRESS_OLLAMA_MODEL=llama3
+    volumes:
+      - ./backend:/app
+      - ./plugins:/plugins
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=agentpress
+      - POSTGRES_PASSWORD=agentpress
+      - POSTGRES_DB=agentpress
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./.data/postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./.data/redis:/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.4
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./.data/qdrant:/qdrant/storage
+
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./.data/ollama:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  ollama-init:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-lc"]
+    command: "ollama pull ${AGENTPRESS_OLLAMA_MODEL:-llama3}"
+    volumes:
+      - ./.data/ollama:/root/.ollama

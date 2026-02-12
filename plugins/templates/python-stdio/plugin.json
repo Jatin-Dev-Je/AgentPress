@@ -1,0 +1,12 @@
+{
+  "id": "your-plugin-id",
+  "name": "Your Plugin Name",
+  "version": "0.1.0",
+  "description": "Describe what your plugin does.",
+  "entrypoint": "main.py",
+  "mcp": {
+    "transport": "stdio"
+  },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

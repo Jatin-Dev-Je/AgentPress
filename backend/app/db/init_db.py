@@ -21,4 +21,17 @@ async def init_db() -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
     async with engine.begin() as conn:
+        # Lightweight SQLite migration for additive columns.
+        if url.drivername.startswith("sqlite"):
+            try:
+                res = await conn.exec_driver_sql("PRAGMA table_info(agents)")
+                existing_cols = {row[1] for row in res.fetchall()}
+                if "allowed_plugins" not in existing_cols:
+                    await conn.exec_driver_sql("ALTER TABLE agents ADD COLUMN allowed_plugins JSON")
+                if "allowed_tools" not in existing_cols:
+                    await conn.exec_driver_sql("ALTER TABLE agents ADD COLUMN allowed_tools JSON")
+            except Exception:
+                # If the table doesn't exist yet or ALTER fails, create_all below will handle new DBs.
+                pass
+
         await conn.run_sync(Base.metadata.create_all)

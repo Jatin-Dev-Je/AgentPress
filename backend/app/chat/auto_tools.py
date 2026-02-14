@@ -71,7 +71,11 @@ def _extract_first_json_object(text: str) -> str | None:
     return None
 
 
-async def build_tools_prompt_fragment() -> str:
+async def build_tools_prompt_fragment(
+    *,
+    allowed_plugins: list[str] | None = None,
+    allowed_tools: dict[str, list[str]] | None = None,
+) -> str:
     """Compact tool catalog for ReAct-style prompting.
 
     v1: includes all installed plugin tools.
@@ -79,6 +83,26 @@ async def build_tools_prompt_fragment() -> str:
     """
 
     plugins = await plugin_manager.list_plugins()
+
+    if allowed_plugins is not None:
+        plugins = [p for p in plugins if p.get("id") in set(allowed_plugins)]
+
+    if allowed_tools is not None:
+        filtered: list[dict] = []
+        for p in plugins:
+            pid = p.get("id")
+            if not isinstance(pid, str):
+                continue
+            allowed = allowed_tools.get(pid) or []
+            tools = p.get("tools") or []
+            if allowed:
+                tools = [t for t in tools if t.get("name") in set(allowed)]
+            else:
+                tools = []
+            p2 = dict(p)
+            p2["tools"] = tools
+            filtered.append(p2)
+        plugins = filtered
 
     lines: list[str] = ["Available tools (MCP plugins):"]
 

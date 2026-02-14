@@ -20,6 +20,12 @@ class Agent(Base):
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     temperature: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
 
+    # Optional allowlists for safer tool calling.
+    # If unset (NULL), all plugins/tools are allowed.
+    # If set, only the specified plugins/tools are allowed.
+    allowed_plugins: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    allowed_tools: Mapped[dict[str, list[str]] | None] = mapped_column(JSON, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

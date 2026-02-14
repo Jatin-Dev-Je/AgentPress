@@ -97,7 +97,7 @@ try {
     $echo = $plugins | Where-Object { $_.id -eq 'echo' } | Select-Object -First 1
     Assert-True ($null -ne $echo) 'echo plugin is installed'
 
-    $toolRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/plugins/echo/tools/echo" -ContentType 'application/json' -Headers @{ 'x-agent-id' = 'smoke-agent' } -Body (@{
+    $toolRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/plugins/echo/tools/echo" -ContentType 'application/json' -Headers @{ 'x-agent-id' = $agent.id } -Body (@{
         params = @{ text = 'hi' }
     } | ConvertTo-Json)
     Assert-True ($toolRes.result) 'plugin tool call returned result'

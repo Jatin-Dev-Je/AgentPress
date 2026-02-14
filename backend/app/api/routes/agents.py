@@ -21,6 +21,8 @@ class AgentCreate(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     system_prompt: str = ""
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    allowed_plugins: list[str] | None = None
+    allowed_tools: dict[str, list[str]] | None = None
 
 
 class AgentUpdate(BaseModel):
@@ -28,6 +30,8 @@ class AgentUpdate(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=200)
     system_prompt: str | None = None
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    allowed_plugins: list[str] | None = None
+    allowed_tools: dict[str, list[str]] | None = None
 
 
 class AgentOut(BaseModel):
@@ -36,6 +40,8 @@ class AgentOut(BaseModel):
     model: str
     system_prompt: str
     temperature: float
+    allowed_plugins: list[str] | None
+    allowed_tools: dict[str, list[str]] | None
     created_at: datetime
     updated_at: datetime
 
@@ -47,6 +53,8 @@ def _to_out(a: Agent) -> AgentOut:
         model=a.model,
         system_prompt=a.system_prompt,
         temperature=a.temperature,
+        allowed_plugins=a.allowed_plugins,
+        allowed_tools=a.allowed_tools,
         created_at=a.created_at,
         updated_at=a.updated_at,
     )
@@ -59,6 +67,8 @@ async def create_agent(body: AgentCreate, session: AsyncSession = Depends(get_se
         model=body.model,
         system_prompt=body.system_prompt,
         temperature=body.temperature,
+        allowed_plugins=body.allowed_plugins,
+        allowed_tools=body.allowed_tools,
     )
     session.add(agent)
     await session.commit()
@@ -97,6 +107,12 @@ async def update_agent(agent_id: str, body: AgentUpdate, session: AsyncSession =
         agent.system_prompt = body.system_prompt
     if body.temperature is not None:
         agent.temperature = body.temperature
+
+    # Allow explicit clearing by sending null (None) by checking fields_set.
+    if "allowed_plugins" in body.model_fields_set:
+        agent.allowed_plugins = body.allowed_plugins
+    if "allowed_tools" in body.model_fields_set:
+        agent.allowed_tools = body.allowed_tools
 
     await session.commit()
     await session.refresh(agent)

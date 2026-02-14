@@ -16,6 +16,7 @@ from app.core.settings import settings
 from app.db.models import Agent, Conversation, Message, ToolCall
 from app.llm.ollama import OllamaError, chat_once, stream_chat
 from app.plugins.manager import plugin_manager
+from app.security.tool_policy import is_tool_allowed
 
 
 async def stream_agent_chat(
@@ -81,6 +82,18 @@ async def stream_agent_chat(
                     "plugin": directive.plugin_id,
                     "tool_name": directive.tool_name,
                     "error": f"Invalid tool_calling_mode: {settings.tool_calling_mode}",
+                },
+            )
+            return
+
+        if not is_tool_allowed(agent=agent, plugin_id=directive.plugin_id, tool_name=directive.tool_name):
+            yield sse(
+                "tool_call_error",
+                {
+                    "tool_id": None,
+                    "plugin": directive.plugin_id,
+                    "tool_name": directive.tool_name,
+                    "error": "Tool call blocked by agent allowlist policy",
                 },
             )
             return
@@ -180,7 +193,10 @@ async def stream_agent_chat(
             )
             return
 
-        tools_fragment = await build_tools_prompt_fragment()
+        tools_fragment = await build_tools_prompt_fragment(
+            allowed_plugins=agent.allowed_plugins,
+            allowed_tools=agent.allowed_tools,
+        )
         system_prompt = build_react_system_prompt(
             base_system_prompt=agent.system_prompt or "",
             tools_fragment=tools_fragment,
@@ -235,6 +251,18 @@ async def stream_agent_chat(
                         "code": "invalid_tool_call",
                         "message": "Invalid TOOL_CALL payload; expected plugin_id/tool_name strings and params object",
                         "raw": payload,
+                    },
+                )
+                return
+
+            if not is_tool_allowed(agent=agent, plugin_id=plugin_id, tool_name=tool_name):
+                yield sse(
+                    "error",
+                    {
+                        "code": "tool_not_allowed",
+                        "message": "Tool call blocked by agent allowlist policy",
+                        "plugin_id": plugin_id,
+                        "tool_name": tool_name,
                     },
                 )
                 return

@@ -72,7 +72,7 @@ Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/plugins
 Call the `echo` tool directly:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/plugins/echo/tools/echo -ContentType 'application/json' -Headers @{ 'x-agent-id'='dev-agent' } -Body (@{
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/plugins/echo/tools/echo -ContentType 'application/json' -Headers @{ 'x-agent-id'='<agent_id>' } -Body (@{
 	params=@{ text='hello from plugin' }
 } | ConvertTo-Json)
 ```

@@ -1,7 +1,12 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import Agent
+from app.db.session import get_session
 from app.plugins.manager import plugin_manager
+from app.security.tool_policy import is_tool_allowed
 
 router = APIRouter()
 
@@ -21,8 +26,20 @@ async def call_tool(
     tool_name: str,
     body: ToolCallBody,
     x_agent_id: str | None = Header(default=None),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
-    agent_id = x_agent_id or "dev-agent"
+    if not x_agent_id:
+        raise HTTPException(status_code=400, detail="missing x-agent-id header")
+
+    res = await session.execute(select(Agent).where(Agent.id == x_agent_id))
+    agent = res.scalar_one_or_none()
+    if agent is None:
+        raise HTTPException(status_code=404, detail="agent not found")
+
+    if not is_tool_allowed(agent=agent, plugin_id=plugin_id, tool_name=tool_name):
+        raise HTTPException(status_code=403, detail="tool call not allowed for this agent")
+
+    agent_id = agent.id
     try:
         return await plugin_manager.call_tool(
             plugin_id=plugin_id,

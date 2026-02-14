@@ -48,6 +48,14 @@ class StdioMcpClient:
         env["PYTHONUNBUFFERED"] = "1"
         env.update(self._env_allowlist)
 
+        # Do not leak Agentpress secrets into untrusted plugin processes.
+        # Keep the rest of the OS environment to avoid breaking process startup on Windows.
+        for k in list(env.keys()):
+            if k.startswith("AGENTPRESS_") and k not in self._env_allowlist:
+                env.pop(k, None)
+        env.pop("OPENAI_API_KEY", None)
+        env.pop("ANTHROPIC_API_KEY", None)
+
         kwargs: dict[str, Any] = {}
         if os.name != "nt":
             try:
@@ -187,5 +195,16 @@ class StdioMcpClient:
     def _resolve_entrypoint(self, entrypoint: str) -> Path:
         entry = Path(entrypoint)
         if entry.is_absolute():
-            return entry
-        return (self._plugin_path / entry).resolve()
+            raise ValueError("Plugin entrypoint must be a relative path")
+
+        resolved = (self._plugin_path / entry).resolve()
+        try:
+            if not resolved.is_relative_to(self._plugin_path.resolve()):
+                raise ValueError("Plugin entrypoint escapes plugin directory")
+        except AttributeError:
+            # Python <3.9 fallback (not expected on CI, but safe).
+            plugin_root = str(self._plugin_path.resolve())
+            if not str(resolved).startswith(plugin_root):
+                raise ValueError("Plugin entrypoint escapes plugin directory")
+
+        return resolved

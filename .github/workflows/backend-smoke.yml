@@ -1,0 +1,44 @@
+name: backend-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: backend-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            backend/requirements.txt
+
+      - name: Create venv
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -U pip
+
+      - name: Install backend dependencies
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+
+      - name: Run backend smoke test
+        shell: pwsh
+        run: |
+          ./scripts/smoke-backend.ps1

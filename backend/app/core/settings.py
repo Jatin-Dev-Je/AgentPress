@@ -38,5 +38,15 @@ class Settings(BaseSettings):
     rate_limit_requests_per_minute: int = 120
     trust_proxy_headers: bool = False
 
+    # API surface hardening
+    enable_docs: bool = True
+
+    # CORS (disabled by default; explicitly enable + set origins for browsers)
+    cors_enabled: bool = False
+    cors_allow_origins: list[str] = []
+    cors_allow_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    cors_allow_headers: list[str] = ["*"]
+    cors_allow_credentials: bool = False
+
 
 settings = Settings()

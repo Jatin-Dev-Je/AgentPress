@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.settings import settings
@@ -7,7 +8,17 @@ from app.security.middleware import FixedWindowRateLimitMiddleware, MaxBodySizeM
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Agentpress", version="0.1.0")
+    docs_url = "/docs" if settings.enable_docs else None
+    redoc_url = "/redoc" if settings.enable_docs else None
+    openapi_url = "/openapi.json" if settings.enable_docs else None
+
+    app = FastAPI(
+        title="Agentpress",
+        version="0.1.0",
+        docs_url=docs_url,
+        redoc_url=redoc_url,
+        openapi_url=openapi_url,
+    )
 
     # Security middleware (apply before routes).
     app.add_middleware(MaxBodySizeMiddleware, max_body_size=settings.max_request_body_bytes)
@@ -17,6 +28,15 @@ def create_app() -> FastAPI:
             requests_per_minute=settings.rate_limit_requests_per_minute,
             trust_proxy_headers=settings.trust_proxy_headers,
             exempt_paths={"/health"},
+        )
+
+    if settings.cors_enabled:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_allow_origins,
+            allow_methods=settings.cors_allow_methods,
+            allow_headers=settings.cors_allow_headers,
+            allow_credentials=settings.cors_allow_credentials,
         )
 
     app.include_router(api_router)

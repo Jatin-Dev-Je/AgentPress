@@ -42,6 +42,21 @@ $env:AGENTPRESS_MAX_REQUEST_BODY_BYTES = "1000000"
 $env:AGENTPRESS_TRUST_PROXY_HEADERS = "false"
 ```
 
+Docs / OpenAPI:
+```powershell
+# Disable Swagger + OpenAPI endpoints in production
+$env:AGENTPRESS_ENABLE_DOCS = "false"
+```
+
+CORS (browser clients):
+```powershell
+# Disabled by default. Enable only if you have a browser frontend.
+$env:AGENTPRESS_CORS_ENABLED = "true"
+$env:AGENTPRESS_CORS_ALLOW_ORIGINS = '[
+	"https://your-frontend.example.com"
+]'
+```
+
 ### Smoke test (backend)
 
 Runs a quick end-to-end check (health, agents CRUD, chat SSE via `/tool`, and the `echo` plugin):

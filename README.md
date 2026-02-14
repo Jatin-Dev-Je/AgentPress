@@ -16,6 +16,15 @@ Tip: copy `.env.example` to `.env` (gitignored) to configure secrets and securit
 
 Backend: http://localhost:8000
 
+### Run (production-ish)
+
+This uses a compose override that disables docs and requires an API key:
+
+```bash
+export AGENTPRESS_API_KEY="change-me"
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+```
+
 ### Optional API key (recommended for self-host)
 
 Set an API key to protect `/agents` and `/plugins` endpoints:

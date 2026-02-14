@@ -2,6 +2,7 @@ services:
   backend:
     build:
       context: ./backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       - AGENTPRESS_PLUGINS_DIR=${AGENTPRESS_PLUGINS_DIR:-/plugins/installed}
       - AGENTPRESS_PLUGIN_TIMEOUT_SECONDS=${AGENTPRESS_PLUGIN_TIMEOUT_SECONDS:-30}

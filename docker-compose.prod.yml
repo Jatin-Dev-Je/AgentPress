@@ -1,0 +1,15 @@
+services:
+  backend:
+    # Production overrides
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      # Require API key in production
+      - AGENTPRESS_API_KEY=${AGENTPRESS_API_KEY:?Set AGENTPRESS_API_KEY in your environment or .env}
+
+      # Reduce attack surface
+      - AGENTPRESS_ENABLE_DOCS=${AGENTPRESS_ENABLE_DOCS:-false}
+
+      # Keep hardening enabled
+      - AGENTPRESS_RATE_LIMIT_ENABLED=${AGENTPRESS_RATE_LIMIT_ENABLED:-true}
+      - AGENTPRESS_SECURITY_HEADERS_ENABLED=${AGENTPRESS_SECURITY_HEADERS_ENABLED:-true}
+      - AGENTPRESS_HSTS_ENABLED=${AGENTPRESS_HSTS_ENABLED:-true}

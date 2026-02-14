@@ -33,4 +33,10 @@ COPY app /app/app
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=5 \
+    CMD python -c "import json,sys,urllib.request;\
+u='http://127.0.0.1:8000/health';\
+data=json.load(urllib.request.urlopen(u, timeout=2));\
+sys.exit(0 if data.get('status')=='ok' else 1)"
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

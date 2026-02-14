@@ -12,6 +12,8 @@ Open-source AI Agent Platform (agent infrastructure) focused on a self-hostable 
 docker compose up --build
 ```
 
+Tip: copy `.env.example` to `.env` (gitignored) to configure secrets and security settings.
+
 Backend: http://localhost:8000
 
 ### Optional API key (recommended for self-host)

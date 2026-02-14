@@ -3,11 +3,26 @@ services:
     build:
       context: ./backend
     environment:
-      - AGENTPRESS_PLUGINS_DIR=/plugins/installed
-      - AGENTPRESS_PLUGIN_TIMEOUT_SECONDS=30
-      - AGENTPRESS_DATABASE_URL=postgresql+asyncpg://agentpress:agentpress@postgres:5432/agentpress
-      - AGENTPRESS_OLLAMA_BASE_URL=http://ollama:11434
-      - AGENTPRESS_OLLAMA_MODEL=llama3
+      - AGENTPRESS_PLUGINS_DIR=${AGENTPRESS_PLUGINS_DIR:-/plugins/installed}
+      - AGENTPRESS_PLUGIN_TIMEOUT_SECONDS=${AGENTPRESS_PLUGIN_TIMEOUT_SECONDS:-30}
+
+      # Auth (recommended for self-host)
+      - AGENTPRESS_API_KEY=${AGENTPRESS_API_KEY:-}
+
+      # DB
+      - AGENTPRESS_DATABASE_URL=${AGENTPRESS_DATABASE_URL:-postgresql+asyncpg://agentpress:agentpress@postgres:5432/agentpress}
+
+      # LLM (Ollama profile uses the in-compose service)
+      - AGENTPRESS_OLLAMA_BASE_URL=${AGENTPRESS_OLLAMA_BASE_URL:-http://ollama:11434}
+      - AGENTPRESS_OLLAMA_MODEL=${AGENTPRESS_OLLAMA_MODEL:-llama3}
+
+      # Security hardening toggles
+      - AGENTPRESS_ENABLE_DOCS=${AGENTPRESS_ENABLE_DOCS:-true}
+      - AGENTPRESS_RATE_LIMIT_ENABLED=${AGENTPRESS_RATE_LIMIT_ENABLED:-true}
+      - AGENTPRESS_RATE_LIMIT_REQUESTS_PER_MINUTE=${AGENTPRESS_RATE_LIMIT_REQUESTS_PER_MINUTE:-120}
+      - AGENTPRESS_MAX_REQUEST_BODY_BYTES=${AGENTPRESS_MAX_REQUEST_BODY_BYTES:-1000000}
+      - AGENTPRESS_SECURITY_HEADERS_ENABLED=${AGENTPRESS_SECURITY_HEADERS_ENABLED:-true}
+      - AGENTPRESS_HSTS_ENABLED=${AGENTPRESS_HSTS_ENABLED:-false}
     volumes:
       - ./backend:/app
       - ./plugins:/plugins
@@ -21,9 +36,9 @@ services:
   postgres:
     image: postgres:16
     environment:
-      - POSTGRES_USER=agentpress
-      - POSTGRES_PASSWORD=agentpress
-      - POSTGRES_DB=agentpress
+      - POSTGRES_USER=${POSTGRES_USER:-agentpress}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-agentpress}
+      - POSTGRES_DB=${POSTGRES_DB:-agentpress}
     ports:
       - "5432:5432"
     volumes:

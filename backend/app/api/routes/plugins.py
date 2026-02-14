@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.plugins.manager import plugin_manager
 
@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 class ToolCallBody(BaseModel):
-    params: dict = {}
+    params: dict = Field(default_factory=dict)
 
 
 @router.get("")

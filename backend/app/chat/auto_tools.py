@@ -1,34 +1,74 @@
 from __future__ import annotations
 
 import json
-import re
 
 from app.plugins.manager import plugin_manager
 
-_TOOL_CALL_RE = re.compile(r"^TOOL_CALL\s+(\{.*\})\s*$", re.DOTALL)
-
 
 def try_parse_tool_call(text: str) -> dict | None:
-    """Parse a strict tool-call line: `TOOL_CALL {json}`.
+    """Parse a tool call marker emitted by the model.
+
+    We *prefer* the strict format:
+      TOOL_CALL {json}
+
+    In practice, some models add extra whitespace or wrapper text.
+    This parser finds the first occurrence of 'TOOL_CALL' and then extracts the
+    first balanced JSON object that follows it.
 
     Returns payload dict or None.
-    Expected shape:
+    Expected shape (validated later in the caller):
       {"plugin_id": "...", "tool_name": "...", "params": {...}}
     """
 
-    m = _TOOL_CALL_RE.match(text.strip())
-    if not m:
+    marker = "TOOL_CALL"
+    idx = text.find(marker)
+    if idx < 0:
+        return None
+
+    after = text[idx + len(marker) :]
+    json_s = _extract_first_json_object(after)
+    if not json_s:
         return None
 
     try:
-        payload = json.loads(m.group(1))
+        payload = json.loads(json_s)
     except json.JSONDecodeError:
         return None
 
-    if not isinstance(payload, dict):
+    return payload if isinstance(payload, dict) else None
+
+
+def _extract_first_json_object(text: str) -> str | None:
+    start = text.find("{")
+    if start < 0:
         return None
 
-    return payload
+    depth = 0
+    in_string = False
+    escape = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+
+    return None
 
 
 async def build_tools_prompt_fragment() -> str:

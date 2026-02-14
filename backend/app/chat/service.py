@@ -59,7 +59,19 @@ async def stream_agent_chat(
         )
         return
 
-    directive = parse_tool_directive(user_text)
+    try:
+        directive = parse_tool_directive(user_text)
+    except ValueError as e:
+        yield sse(
+            "tool_call_error",
+            {
+                "tool_id": None,
+                "plugin": None,
+                "tool_name": None,
+                "error": str(e),
+            },
+        )
+        return
     if directive is not None:
         if settings.tool_calling_mode not in ("manual", "auto"):
             yield sse(
@@ -178,6 +190,7 @@ async def stream_agent_chat(
         started_ms = int(time.time() * 1000)
         max_tool_calls = 5
         tool_calls_used = 0
+        seen_signatures: dict[str, int] = {}
 
         while True:
             try:
@@ -185,7 +198,7 @@ async def stream_agent_chat(
                     base_url=settings.ollama_base_url,
                     model=settings.ollama_model,
                     messages=ollama_messages,
-                    temperature=0.2,
+                    temperature=agent.temperature,
                 )
             except OllamaError as e:
                 yield sse("error", {"code": "ollama_error", "message": str(e)})
@@ -222,6 +235,21 @@ async def stream_agent_chat(
                         "code": "invalid_tool_call",
                         "message": "Invalid TOOL_CALL payload; expected plugin_id/tool_name strings and params object",
                         "raw": payload,
+                    },
+                )
+                return
+
+            signature = f"{plugin_id}::{tool_name}::{json.dumps(params, sort_keys=True, separators=(',', ':'))}"
+            seen_signatures[signature] = seen_signatures.get(signature, 0) + 1
+            if seen_signatures[signature] >= 3:
+                yield sse(
+                    "error",
+                    {
+                        "code": "tool_call_loop",
+                        "message": "Detected repeated identical tool calls; stopping to avoid a loop",
+                        "plugin_id": plugin_id,
+                        "tool_name": tool_name,
+                        "params": params,
                     },
                 )
                 return
@@ -282,6 +310,13 @@ async def stream_agent_chat(
                         "content": "TOOL_RESULT " + json.dumps(out, ensure_ascii=False),
                     }
                 )
+                ollama_messages.append(
+                    {
+                        "role": "user",
+                        "content": "Now provide the final answer to the user. "
+                        "If you have enough information, do NOT call any more tools.",
+                    }
+                )
             except Exception as e:
                 tool_call.status = "failed"
                 tool_call.error = str(e)
@@ -339,6 +374,7 @@ async def stream_agent_chat(
             base_url=settings.ollama_base_url,
             model=settings.ollama_model,
             messages=ollama_messages,
+            temperature=agent.temperature,
         ):
             assistant_text_parts.append(token)
             yield sse("token", {"text": token})

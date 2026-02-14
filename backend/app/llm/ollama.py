@@ -15,6 +15,7 @@ async def stream_chat(
     base_url: str,
     model: str,
     messages: list[dict],
+    temperature: float | None = None,
     timeout_seconds: float = 60.0,
 ) -> AsyncIterator[str]:
     """Yield assistant token chunks from Ollama's /api/chat streaming JSONL."""
@@ -25,6 +26,8 @@ async def stream_chat(
         "messages": messages,
         "stream": True,
     }
+    if temperature is not None:
+        payload["options"] = {"temperature": temperature}
 
     timeout = httpx.Timeout(timeout_seconds, connect=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:

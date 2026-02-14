@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -118,6 +119,8 @@ async def chat_agent(agent_id: str, body: ChatRequest, session: AsyncSession = D
                 conversation_id=body.conversation_id,
             ):
                 yield chunk
+        except asyncio.CancelledError:
+            raise
         except KeyError as e:
             if str(e).strip("'") == "agent_not_found":
                 yield b"event: error\ndata: {\"code\":\"not_found\",\"message\":\"Agent not found\"}\n\n"
@@ -125,5 +128,19 @@ async def chat_agent(agent_id: str, body: ChatRequest, session: AsyncSession = D
                 yield b"event: error\ndata: {\"code\":\"not_found\",\"message\":\"Conversation not found\"}\n\n"
             else:
                 yield b"event: error\ndata: {\"code\":\"error\",\"message\":\"Unknown error\"}\n\n"
+        except ValueError as e:
+            msg = str(e).replace('"', "\\\"")
+            yield f'event: error\ndata: {{"code":"bad_request","message":"{msg}"}}\n\n'.encode("utf-8")
+        except Exception as e:
+            msg = str(e).replace('"', "\\\"")
+            yield f'event: error\ndata: {{"code":"error","message":"{msg}"}}\n\n'.encode("utf-8")
 
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-store",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

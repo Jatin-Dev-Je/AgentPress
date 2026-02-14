@@ -28,5 +28,9 @@ class Settings(BaseSettings):
 
     tool_calling_mode: str = "manual"  # manual | auto | disabled
 
+    # Optional API key for protecting the HTTP API.
+    # If unset, all requests are allowed.
+    api_key: str | None = None
+
 
 settings = Settings()

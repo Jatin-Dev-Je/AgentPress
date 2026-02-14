@@ -9,9 +9,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Assert-DockerRunning {
-  try {
-    docker info | Out-Null
-  } catch {
+  $null = & docker info 2>$null
+  if ($LASTEXITCODE -ne 0) {
     throw @"
 Docker Engine is not reachable.
 
@@ -23,6 +22,26 @@ If you use a non-default Docker context, also verify:
   docker context use desktop-linux
 "@
   }
+}
+
+function Invoke-Docker {
+  param(
+    [Parameter(Mandatory=$true)][string[]]$Args,
+    [string]$OnFailMessage = 'Docker command failed.'
+  )
+  $out = & docker @Args 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $msg = ($out | Out-String).Trim()
+    $cmdLine = 'docker ' + ($Args -join ' ')
+    throw "$OnFailMessage`n`ncmd: $cmdLine`nexit: $LASTEXITCODE`noutput:`n$msg"
+  }
+  return $out
+}
+
+function Test-ContainerExists {
+  param([Parameter(Mandatory=$true)][string]$Name)
+  $id = (& docker ps -aq --filter "name=^${Name}$" | Select-Object -First 1)
+  return -not [string]::IsNullOrWhiteSpace($id)
 }
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -43,25 +62,58 @@ $containerName = "agentpress-migtest-postgres-$([Guid]::NewGuid().ToString('N').
 
 try {
   Write-Host "Pulling $PostgresImage (if needed)"
-  docker pull $PostgresImage | Out-Null
+  Invoke-Docker -Args @('pull', $PostgresImage) -OnFailMessage "Failed to pull $PostgresImage."
 
   Write-Host "Starting Postgres container $containerName on port $Port"
-  docker run -d --name $containerName `
-    -e "POSTGRES_USER=$DbUser" `
-    -e "POSTGRES_PASSWORD=$DbPassword" `
-    -e "POSTGRES_DB=$DbName" `
-    -p "${Port}:5432" `
-    $PostgresImage | Out-Null
+  try {
+    Invoke-Docker -Args @(
+      'run','-d',
+      '--name', $containerName,
+      '-e', "POSTGRES_USER=$DbUser",
+      '-e', "POSTGRES_PASSWORD=$DbPassword",
+      '-e', "POSTGRES_DB=$DbName",
+      '-p', "${Port}:5432",
+      $PostgresImage
+    ) -OnFailMessage "Failed to start Postgres container. This can happen if Docker Desktop's disk image has an I/O issue."
+  } catch {
+    Write-Host "--- docker system df (debug) ---"
+    try { docker system df } catch {}
+    Write-Host "-------------------------------"
+    throw
+  }
+
+  if (-not (Test-ContainerExists -Name $containerName)) {
+    throw "Postgres container was not created (name=$containerName)."
+  }
 
   Write-Host 'Waiting for Postgres readiness (pg_isready)'
   $deadline = (Get-Date).AddSeconds(60)
   while ((Get-Date) -lt $deadline) {
     try {
-      docker exec $containerName pg_isready -U $DbUser -d $DbName | Out-Null
+      & docker exec $containerName pg_isready -U $DbUser -d $DbName | Out-Null
+      if ($LASTEXITCODE -eq 0) {
+        break
+      }
       break
     } catch {
       Start-Sleep -Milliseconds 500
     }
+  }
+
+  # If still not ready, dump logs and fail.
+  try {
+    & docker exec $containerName pg_isready -U $DbUser -d $DbName | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "--- postgres logs (debug) ---"
+      try { docker logs --tail 200 $containerName } catch {}
+      Write-Host "----------------------------"
+      throw "Postgres did not become ready in time."
+    }
+  } catch {
+    Write-Host "--- postgres logs (debug) ---"
+    try { docker logs --tail 200 $containerName } catch {}
+    Write-Host "----------------------------"
+    throw
   }
 
   $dbUrl = "postgresql+asyncpg://${DbUser}:${DbPassword}@127.0.0.1:${Port}/${DbName}"

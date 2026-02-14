@@ -56,5 +56,10 @@ class Settings(BaseSettings):
     audit_enabled: bool = True
     audit_max_events: int = 2000
 
+    # Optional dependency URLs (used for /health readiness checks)
+    redis_url: str | None = None  # e.g. redis://redis:6379
+    qdrant_url: str | None = None  # e.g. http://qdrant:6333
+    healthcheck_timeout_seconds: float = 1.5
+
 
 settings = Settings()

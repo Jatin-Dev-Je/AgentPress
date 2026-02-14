@@ -13,6 +13,10 @@ services:
       # DB
       - AGENTPRESS_DATABASE_URL=${AGENTPRESS_DATABASE_URL:-postgresql+asyncpg://agentpress:agentpress@postgres:5432/agentpress}
 
+      # Optional deps (used for /health readiness checks)
+      - AGENTPRESS_REDIS_URL=${AGENTPRESS_REDIS_URL:-redis://redis:6379}
+      - AGENTPRESS_QDRANT_URL=${AGENTPRESS_QDRANT_URL:-http://qdrant:6333}
+
       # LLM (Ollama profile uses the in-compose service)
       - AGENTPRESS_OLLAMA_BASE_URL=${AGENTPRESS_OLLAMA_BASE_URL:-http://ollama:11434}
       - AGENTPRESS_OLLAMA_MODEL=${AGENTPRESS_OLLAMA_MODEL:-llama3}

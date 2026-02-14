@@ -32,5 +32,11 @@ class Settings(BaseSettings):
     # If unset, all requests are allowed.
     api_key: str | None = None
 
+    # HTTP security hardening
+    max_request_body_bytes: int = 1_000_000  # ~1MB
+    rate_limit_enabled: bool = True
+    rate_limit_requests_per_minute: int = 120
+    trust_proxy_headers: bool = False
+
 
 settings = Settings()

@@ -26,6 +26,22 @@ Then pass it as either:
 - `X-API-Key: your-secret`, or
 - `Authorization: Bearer your-secret`
 
+### Security defaults
+
+Agentpress ships with basic HTTP hardening enabled by default:
+- **Rate limiting** (in-memory, per API key or client IP)
+- **Max request body size** (rejects large payloads with HTTP 413)
+
+Configure via env vars:
+```powershell
+$env:AGENTPRESS_RATE_LIMIT_ENABLED = "true"
+$env:AGENTPRESS_RATE_LIMIT_REQUESTS_PER_MINUTE = "120"
+$env:AGENTPRESS_MAX_REQUEST_BODY_BYTES = "1000000"
+
+# Only enable if you run behind a trusted reverse proxy that sets X-Forwarded-For
+$env:AGENTPRESS_TRUST_PROXY_HEADERS = "false"
+```
+
 ### Smoke test (backend)
 
 Runs a quick end-to-end check (health, agents CRUD, chat SSE via `/tool`, and the `echo` plugin):

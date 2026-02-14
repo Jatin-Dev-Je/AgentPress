@@ -23,8 +23,10 @@ jobs:
         env:
           AGENTPRESS_API_KEY: ci-secret
           AGENTPRESS_ENABLE_DOCS: "false"
+          # CI hits the service over plain HTTP; keep HSTS off here.
+          AGENTPRESS_HSTS_ENABLED: "false"
         run: |
-          docker compose up --build -d
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 
       - name: Wait for backend health
         run: |
@@ -98,10 +100,10 @@ PY
       - name: Compose logs (on failure)
         if: failure()
         run: |
-          docker compose ps
-          docker compose logs --no-color --tail=300 backend
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --no-color --tail=300 backend
 
       - name: Compose down
         if: always()
         run: |
-          docker compose down -v
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v

@@ -233,6 +233,15 @@ cd backend
 alembic revision --autogenerate -m "your change"
 ```
 
+### Postgres local verification (Docker)
+
+If you have Docker Desktop running, this script spins up a disposable Postgres container,
+runs `alembic upgrade head`, validates expected tables, then runs a destructive downgrade/upgrade cycle:
+
+```powershell
+./scripts/verify-postgres-migrations.ps1
+```
+
 ## Plugin development (MCP over stdio)
 
 See `plugins/templates/python-stdio` for a minimal stdio-first plugin template and `plugins/examples/echo` for a working example.

@@ -34,9 +34,13 @@ jobs:
           url="http://127.0.0.1:8000/health"
           echo "Waiting for $url"
           for i in {1..120}; do
-            if curl -fsS "$url" >/dev/null; then
-              echo "Backend is healthy"
-              exit 0
+            if json=$(curl -fsS "$url"); then
+              status=$(python -c 'import json,sys; print((json.loads(sys.stdin.read()) or {}).get("status",""))' <<<"$json")
+              if [ "$status" = "ok" ]; then
+                echo "Backend is healthy"
+                exit 0
+              fi
+              echo "Health status=$status; waiting..."
             fi
             sleep 1
           done
@@ -63,11 +67,7 @@ jobs:
             -H "X-API-Key: $API_KEY" \
             -d '{"name":"CI Agent","model":"ollama","system_prompt":"You are helpful.","temperature":0.2,"allowed_plugins":["echo"],"allowed_tools":{"echo":["echo"]}}')
 
-          agent_id=$(python - <<'PY'
-import json,sys
-print(json.loads(sys.stdin.read())["id"])
-PY
-          <<<"$agent_json")
+          agent_id=$(python -c 'import json,sys; print(json.loads(sys.stdin.read()).get("id",""))' <<<"$agent_json")
 
           if [ -z "$agent_id" ]; then
             echo "Missing agent id" >&2
@@ -76,13 +76,8 @@ PY
           fi
 
           echo "List plugins"
-          plugins_json=$(curl -fsS "$BASE_URL/plugins" -H "X-API-Key: $API_KEY")
-          echo "$plugins_json" | python - <<'PY'
-import json,sys
-plugins=json.loads(sys.stdin.read())
-assert any(p.get("id")=="echo" for p in plugins), "echo plugin not found"
-print("echo plugin present")
-PY
+          curl -fsS "$BASE_URL/plugins" -H "X-API-Key: $API_KEY" \
+            | python -c 'import json,sys; plugins=json.loads(sys.stdin.read()); assert any(p.get("id")=="echo" for p in plugins), "echo plugin not found"; print("echo plugin present")'
 
           echo "Call plugin tool (allowed for agent)"
           curl -fsS -X POST "$BASE_URL/plugins/echo/tools/echo" \
@@ -90,12 +85,7 @@ PY
             -H "X-API-Key: $API_KEY" \
             -H "x-agent-id: $agent_id" \
             -d '{"params":{"text":"hi"}}' \
-            | python - <<'PY'
-import json,sys
-data=json.loads(sys.stdin.read())
-assert "result" in data
-print("tool call ok")
-PY
+            | python -c 'import json,sys; data=json.loads(sys.stdin.read()); assert "result" in data; print("tool call ok")'
 
       - name: Compose logs (on failure)
         if: failure()

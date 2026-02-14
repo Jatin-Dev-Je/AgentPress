@@ -47,6 +47,14 @@ jobs:
           echo "Timed out waiting for backend health" >&2
           exit 1
 
+      - name: Verify DB migrations applied
+        run: |
+          set -euo pipefail
+          # Ensure alembic can load the app and the database is at head.
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend alembic current
+          # Idempotency check: upgrade again should be a no-op.
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend alembic upgrade head
+
       - name: Container smoke (auth + basic APIs)
         env:
           API_KEY: ci-secret

@@ -42,3 +42,15 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/smoke-backend.ps1
+
+      - name: Alembic migrations smoke (SQLite)
+        shell: pwsh
+        run: |
+          $env:AGENTPRESS_DATABASE_URL = 'sqlite+aiosqlite:///./.data/ci_alembic.db'
+          Push-Location backend
+          try {
+            ..\.venv\Scripts\alembic.exe upgrade head
+            ..\.venv\Scripts\alembic.exe downgrade base
+          } finally {
+            Pop-Location
+          }

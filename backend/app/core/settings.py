@@ -48,5 +48,9 @@ class Settings(BaseSettings):
     cors_allow_headers: list[str] = ["*"]
     cors_allow_credentials: bool = False
 
+    security_headers_enabled: bool = True
+    hsts_enabled: bool = False
+    hsts_max_age_seconds: int = 31_536_000  # 365 days
+
 
 settings = Settings()

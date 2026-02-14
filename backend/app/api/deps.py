@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hmac
+
 from fastapi import Header, HTTPException
 
 from app.core.settings import settings
@@ -27,5 +29,5 @@ def require_api_key(
         if len(parts) == 2 and parts[0].lower() == "bearer":
             token = parts[1].strip()
 
-    if token != expected:
+    if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail="unauthorized")

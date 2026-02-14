@@ -42,6 +42,15 @@ $env:AGENTPRESS_MAX_REQUEST_BODY_BYTES = "1000000"
 $env:AGENTPRESS_TRUST_PROXY_HEADERS = "false"
 ```
 
+Security headers:
+```powershell
+$env:AGENTPRESS_SECURITY_HEADERS_ENABLED = "true"
+
+# Enable only when serving behind HTTPS
+$env:AGENTPRESS_HSTS_ENABLED = "false"
+$env:AGENTPRESS_HSTS_MAX_AGE_SECONDS = "31536000"
+```
+
 Docs / OpenAPI:
 ```powershell
 # Disable Swagger + OpenAPI endpoints in production

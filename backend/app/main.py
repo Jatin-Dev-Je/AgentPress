@@ -4,7 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.settings import settings
 from app.db.init_db import init_db
-from app.security.middleware import FixedWindowRateLimitMiddleware, MaxBodySizeMiddleware
+from app.security.middleware import FixedWindowRateLimitMiddleware, MaxBodySizeMiddleware, SecurityHeadersMiddleware
 
 
 def create_app() -> FastAPI:
@@ -22,6 +22,12 @@ def create_app() -> FastAPI:
 
     # Security middleware (apply before routes).
     app.add_middleware(MaxBodySizeMiddleware, max_body_size=settings.max_request_body_bytes)
+    if settings.security_headers_enabled:
+        app.add_middleware(
+            SecurityHeadersMiddleware,
+            hsts_enabled=settings.hsts_enabled,
+            hsts_max_age_seconds=settings.hsts_max_age_seconds,
+        )
     if settings.rate_limit_enabled:
         app.add_middleware(
             FixedWindowRateLimitMiddleware,

@@ -163,3 +163,39 @@ class FixedWindowRateLimitMiddleware:
             if client and isinstance(client, (list, tuple)) and len(client) >= 1:
                 ip = str(client[0])
         return "ip:" + ip
+
+
+class SecurityHeadersMiddleware:
+    """Apply conservative security headers to HTTP responses."""
+
+    def __init__(self, app: ASGIApp, *, hsts_enabled: bool = False, hsts_max_age_seconds: int = 31_536_000) -> None:
+        self.app = app
+        self.hsts_enabled = bool(hsts_enabled)
+        self.hsts_max_age_seconds = int(hsts_max_age_seconds)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message.get("type") == "http.response.start":
+                headers = list(message.get("headers") or [])
+
+                def _add(name: bytes, value: bytes) -> None:
+                    headers.append((name, value))
+
+                _add(b"x-content-type-options", b"nosniff")
+                _add(b"x-frame-options", b"DENY")
+                _add(b"referrer-policy", b"no-referrer")
+                _add(b"cross-origin-resource-policy", b"same-origin")
+                _add(b"permissions-policy", b"geolocation=(), microphone=(), camera=()")
+
+                if self.hsts_enabled:
+                    v = f"max-age={max(0, self.hsts_max_age_seconds)}; includeSubDomains".encode("ascii")
+                    _add(b"strict-transport-security", v)
+
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

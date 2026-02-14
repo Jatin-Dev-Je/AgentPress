@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.settings import settings
+from app.core.version import get_version_info
 from app.db.session import engine
 from app.db.init_db import init_db
 from app.security.middleware import FixedWindowRateLimitMiddleware, MaxBodySizeMiddleware, SecurityHeadersMiddleware
@@ -143,8 +144,13 @@ def create_app() -> FastAPI:
         return {
             "status": status,
             "plugins_dir": str(settings.plugins_dir),
+            "version": get_version_info(),
             "checks": checks,
         }
+
+    @app.get("/version")
+    async def version() -> dict:
+        return get_version_info()
 
     return app
 

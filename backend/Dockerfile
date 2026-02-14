@@ -5,6 +5,12 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Optional build metadata
+ARG AGENTPRESS_BUILD_SHA=""
+ARG AGENTPRESS_BUILD_TIME=""
+ENV AGENTPRESS_BUILD_SHA=$AGENTPRESS_BUILD_SHA \
+    AGENTPRESS_BUILD_TIME=$AGENTPRESS_BUILD_TIME
+
 # System deps (kept minimal for OSS v1)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \

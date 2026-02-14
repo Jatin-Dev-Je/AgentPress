@@ -16,6 +16,10 @@ Tip: copy `.env.example` to `.env` (gitignored) to configure secrets and securit
 
 Backend: http://localhost:8000
 
+Version info:
+- `GET /version`
+- `/health` includes `version` as well
+
 ### Run (production-ish)
 
 This uses a compose override that disables docs and requires an API key:

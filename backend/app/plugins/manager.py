@@ -24,6 +24,7 @@ class AuditEvent:
     tool_name: str
     params_sha256: str
     ok: bool
+    duration_ms: int
 
 
 class PluginManager:
@@ -76,6 +77,7 @@ class PluginManager:
             ok = False
             raise
         finally:
+            end_ms = int(time.time() * 1000)
             self._audit.append(
                 AuditEvent(
                     ts_ms=start_ms,
@@ -84,8 +86,30 @@ class PluginManager:
                     tool_name=tool_name,
                     params_sha256=params_hash,
                     ok=ok,
+                    duration_ms=max(0, end_ms - start_ms),
                 )
             )
+
+            # Bound memory usage.
+            if settings.audit_enabled and len(self._audit) > settings.audit_max_events:
+                extra = len(self._audit) - settings.audit_max_events
+                del self._audit[0:extra]
+
+    def list_tool_call_audit(self, *, limit: int = 200) -> list[dict]:
+        limit = max(1, int(limit))
+        items = self._audit[-limit:]
+        return [
+            {
+                "ts_ms": e.ts_ms,
+                "plugin_id": e.plugin_id,
+                "agent_id": e.agent_id,
+                "tool_name": e.tool_name,
+                "params_sha256": e.params_sha256,
+                "ok": e.ok,
+                "duration_ms": e.duration_ms,
+            }
+            for e in items
+        ]
 
     def _get_or_create_client(self, manifest: PluginManifest, agent_id: str | None) -> StdioMcpClient:
         key = manifest.id

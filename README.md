@@ -80,6 +80,12 @@ Optional (requires Ollama running): validate auto tool-calling end-to-end:
 ./scripts/smoke-auto.ps1
 ```
 
+## Audit (security)
+
+If API key auth is enabled, you can inspect recent audit events:
+- `GET /audit/auth-failures`
+- `GET /audit/tool-calls`
+
 ## API quick test (agents + chat)
 
 Create an agent:

@@ -52,5 +52,9 @@ class Settings(BaseSettings):
     hsts_enabled: bool = False
     hsts_max_age_seconds: int = 31_536_000  # 365 days
 
+    # Audit logs (in-memory ring buffers)
+    audit_enabled: bool = True
+    audit_max_events: int = 2000
+
 
 settings = Settings()

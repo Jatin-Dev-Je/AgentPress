@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.routes import agents
+from app.api.routes import audit
 from app.api.routes import plugins
 from app.api.deps import require_api_key
 
@@ -15,5 +16,12 @@ api_router.include_router(
 	plugins.router,
 	prefix="/plugins",
 	tags=["plugins"],
+	dependencies=[Depends(require_api_key)],
+)
+
+api_router.include_router(
+	audit.router,
+	prefix="/audit",
+	tags=["audit"],
 	dependencies=[Depends(require_api_key)],
 )

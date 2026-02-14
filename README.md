@@ -14,6 +14,32 @@ docker compose up --build
 
 Backend: http://localhost:8000
 
+### Optional API key (recommended for self-host)
+
+Set an API key to protect `/agents` and `/plugins` endpoints:
+
+```powershell
+$env:AGENTPRESS_API_KEY = "your-secret"
+```
+
+Then pass it as either:
+- `X-API-Key: your-secret`, or
+- `Authorization: Bearer your-secret`
+
+### Smoke test (backend)
+
+Runs a quick end-to-end check (health, agents CRUD, chat SSE via `/tool`, and the `echo` plugin):
+
+```powershell
+./scripts/smoke-backend.ps1
+```
+
+Optional (requires Ollama running): validate auto tool-calling end-to-end:
+
+```powershell
+./scripts/smoke-auto.ps1
+```
+
 ## API quick test (agents + chat)
 
 Create an agent:
@@ -33,6 +59,22 @@ Stream chat (SSE). If Ollama is not running, you'll get an `event: error`:
 Invoke-WebRequest -Method Post -Uri http://127.0.0.1:8000/agents/<agent_id>/chat -ContentType 'application/json' -Body (@{
 	message='Hello'
 } | ConvertTo-Json) | Select-Object -ExpandProperty Content
+```
+
+### Plugin quick test (echo)
+
+List plugins:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/plugins
+```
+
+Call the `echo` tool directly:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/plugins/echo/tools/echo -ContentType 'application/json' -Headers @{ 'x-agent-id'='dev-agent' } -Body (@{
+	params=@{ text='hello from plugin' }
+} | ConvertTo-Json)
 ```
 
 ### Tool call visibility (MVP)

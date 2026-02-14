@@ -217,6 +217,22 @@ $env:AGENTPRESS_DATABASE_URL = "sqlite+aiosqlite:///./.data/agentpress.db"
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Database migrations (Alembic)
+
+For Postgres/production, prefer migrations over `auto_create_tables`.
+
+Run migrations:
+```powershell
+cd backend
+alembic upgrade head
+```
+
+Generate a new migration (after changing models):
+```powershell
+cd backend
+alembic revision --autogenerate -m "your change"
+```
+
 ## Plugin development (MCP over stdio)
 
 See `plugins/templates/python-stdio` for a minimal stdio-first plugin template and `plugins/examples/echo` for a working example.

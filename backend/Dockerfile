@@ -27,9 +27,12 @@ RUN pip install --no-cache-dir -U pip \
     "sqlalchemy[asyncio]>=2.0.30" \
     "asyncpg>=0.29.0" \
     "aiosqlite>=0.20.0" \
-    "httpx>=0.27.0"
+    "httpx>=0.27.0" \
+    "alembic>=1.13.2"
 
 COPY app /app/app
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/alembic
 
 EXPOSE 8000
 

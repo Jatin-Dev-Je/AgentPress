@@ -5,15 +5,22 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 from app.core.settings import settings
+from app.db.migrations import upgrade_to_head
 from app.db.models import Base
 from app.db.session import engine
 
 
 async def init_db() -> None:
+    url = make_url(settings.database_url)
+
+    # Prefer real migrations for production-grade databases.
+    if settings.run_migrations_on_startup:
+        await upgrade_to_head(database_url=settings.database_url)
+        return
+
     if not settings.auto_create_tables:
         return
 
-    url = make_url(settings.database_url)
     if url.drivername.startswith("sqlite") and url.database and url.database != ":memory:":
         db_path = Path(url.database)
         if not db_path.is_absolute():

@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     )
     auto_create_tables: bool = True
 
+    # If enabled, apply Alembic migrations on startup (best for Postgres/prod).
+    # Note: do NOT enable this if you have an existing DB created via create_all
+    # unless you have stamped/migrated it appropriately.
+    run_migrations_on_startup: bool = False
+
     plugins_dir: Path = Path("../plugins/installed")
     plugin_timeout_seconds: int = 30
     plugin_max_output_bytes: int = 2_000_000

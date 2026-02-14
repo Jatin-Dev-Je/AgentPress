@@ -1,0 +1,107 @@
+name: docker-compose-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: docker-compose-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compose up
+        env:
+          AGENTPRESS_API_KEY: ci-secret
+          AGENTPRESS_ENABLE_DOCS: "false"
+        run: |
+          docker compose up --build -d
+
+      - name: Wait for backend health
+        run: |
+          set -euo pipefail
+          url="http://127.0.0.1:8000/health"
+          echo "Waiting for $url"
+          for i in {1..120}; do
+            if curl -fsS "$url" >/dev/null; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for backend health" >&2
+          exit 1
+
+      - name: Container smoke (auth + basic APIs)
+        env:
+          API_KEY: ci-secret
+          BASE_URL: http://127.0.0.1:8000
+        run: |
+          set -euo pipefail
+
+          echo "Check /agents is protected"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/agents")
+          if [ "$code" != "401" ]; then
+            echo "Expected 401, got $code" >&2
+            exit 1
+          fi
+
+          echo "Create agent"
+          agent_json=$(curl -fsS -X POST "$BASE_URL/agents" \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $API_KEY" \
+            -d '{"name":"CI Agent","model":"ollama","system_prompt":"You are helpful.","temperature":0.2,"allowed_plugins":["echo"],"allowed_tools":{"echo":["echo"]}}')
+
+          agent_id=$(python - <<'PY'
+import json,sys
+print(json.loads(sys.stdin.read())["id"])
+PY
+          <<<"$agent_json")
+
+          if [ -z "$agent_id" ]; then
+            echo "Missing agent id" >&2
+            echo "$agent_json" >&2
+            exit 1
+          fi
+
+          echo "List plugins"
+          plugins_json=$(curl -fsS "$BASE_URL/plugins" -H "X-API-Key: $API_KEY")
+          echo "$plugins_json" | python - <<'PY'
+import json,sys
+plugins=json.loads(sys.stdin.read())
+assert any(p.get("id")=="echo" for p in plugins), "echo plugin not found"
+print("echo plugin present")
+PY
+
+          echo "Call plugin tool (allowed for agent)"
+          curl -fsS -X POST "$BASE_URL/plugins/echo/tools/echo" \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $API_KEY" \
+            -H "x-agent-id: $agent_id" \
+            -d '{"params":{"text":"hi"}}' \
+            | python - <<'PY'
+import json,sys
+data=json.loads(sys.stdin.read())
+assert "result" in data
+print("tool call ok")
+PY
+
+      - name: Compose logs (on failure)
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=300 backend
+
+      - name: Compose down
+        if: always()
+        run: |
+          docker compose down -v

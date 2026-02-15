@@ -15,10 +15,17 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 Write-Host "Starting backend on :$BackendPort and frontend on :$FrontendPort" -ForegroundColor Cyan
 
 $backendAlreadyUp = $false
+$backendLooksLikeAgentpress = $false
 try {
   $backendAlreadyUp = Test-NetConnection -ComputerName 'localhost' -Port $BackendPort -InformationLevel Quiet
+  if ($backendAlreadyUp) {
+    $health = Invoke-RestMethod -Uri "http://localhost:$BackendPort/health" -Method Get -TimeoutSec 2
+    if ($health -and $health.status -and $health.plugins_dir -and $health.version) {
+      $backendLooksLikeAgentpress = $true
+    }
+  }
 } catch {
-  $backendAlreadyUp = $false
+  # ignore
 }
 
 $frontendLockPath = Join-Path $RepoRoot 'frontend\.next\dev\lock'
@@ -45,8 +52,10 @@ $frontendArgs = @(
   $frontendCommand
 )
 
-if ($backendAlreadyUp) {
+if ($backendAlreadyUp -and $backendLooksLikeAgentpress) {
   Write-Host "Backend already running on :$BackendPort (skipping)" -ForegroundColor Yellow
+} elseif ($backendAlreadyUp -and -not $backendLooksLikeAgentpress) {
+  Write-Host "Port :$BackendPort is already in use, but it doesn't look like Agentpress. Stop whatever is using the port, then re-run this script." -ForegroundColor Red
 } else {
   Start-Process -FilePath 'powershell' -ArgumentList $backendArgs -WorkingDirectory $RepoRoot
 }

@@ -16,6 +16,23 @@ Tip: copy `.env.example` to `.env` (gitignored) to configure secrets and securit
 
 Backend: http://localhost:8000
 
+## Local dev (no Docker): backend + frontend
+
+### One command (PowerShell)
+
+Starts the FastAPI backend (SQLite) and the Next.js frontend together:
+
+```powershell
+./scripts/dev-full.ps1
+```
+
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
+
+### VS Code task
+
+Run **Terminal → Run Task…** → `dev:all`.
+
 Version info:
 - `GET /version`
 - `/health` includes `version` as well

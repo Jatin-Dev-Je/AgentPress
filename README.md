@@ -233,6 +233,18 @@ cd backend
 alembic revision --autogenerate -m "your change"
 ```
 
+### Existing DBs created via `create_all`
+
+If you already ran the app against Postgres with `auto_create_tables=true`, you may have a database schema
+that exists but does **not** have Alembic tracking (`alembic_version`). Recommended options:
+
+- Easiest (dev): drop the DB/volume and re-run with migrations.
+- If you are sure the schema matches the migrations: stamp the revision (does NOT run migrations):
+
+```powershell
+./scripts/stamp-existing-db.ps1 -DatabaseUrl "postgresql+asyncpg://agentpress:agentpress@127.0.0.1:5432/agentpress"
+```
+
 ### Postgres local verification (Docker)
 
 If you have Docker Desktop running, this script spins up a disposable Postgres container,

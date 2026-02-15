@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import hmac
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.jwt import AuthError, decode_access_token
 from app.core.settings import settings
+from app.db.models import User
+from app.db.session import get_session
 from app.security.audit import AuthFailureEvent, InMemoryAuditLog, now_ms
 
 
@@ -51,3 +56,74 @@ def require_api_key(
                 )
             )
         raise HTTPException(status_code=401, detail="unauthorized")
+
+
+async def require_auth(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> User | None:
+    """Require either a valid API key (if configured) or a valid JWT.
+
+    - If `AGENTPRESS_API_KEY` is set and matches, request is allowed (returns None).
+    - Otherwise a Bearer JWT is required (returns the User).
+
+    This keeps backward compatibility with existing API-key protected flows while
+    enabling user auth for browser clients.
+    """
+
+    expected_key = (settings.api_key or "").strip()
+    has_jwt = bool((settings.jwt_secret or "").strip())
+
+    # Back-compat / dev default: if neither API key nor JWT is configured, allow all.
+    if not expected_key and not has_jwt:
+        return None
+
+    if expected_key:
+        token_key = (x_api_key or "").strip()
+        if not token_key and authorization:
+            parts = authorization.strip().split(" ", 1)
+            if len(parts) == 2 and parts[0].lower() == "bearer":
+                token_key = parts[1].strip()
+        if hmac.compare_digest(token_key, expected_key):
+            return None
+
+    bearer = (authorization or "").strip()
+    if not bearer.lower().startswith("bearer "):
+        if settings.audit_enabled:
+            client_ip = request.client.host if request.client else None
+            _auth_failures.append(
+                AuthFailureEvent(
+                    ts_ms=now_ms(),
+                    method=request.method,
+                    path=request.url.path,
+                    client_ip=client_ip,
+                    reason="missing_bearer_token",
+                )
+            )
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+    jwt_token = bearer.split(" ", 1)[1].strip()
+    try:
+        claims = decode_access_token(jwt_token)
+    except AuthError:
+        if settings.audit_enabled:
+            client_ip = request.client.host if request.client else None
+            _auth_failures.append(
+                AuthFailureEvent(
+                    ts_ms=now_ms(),
+                    method=request.method,
+                    path=request.url.path,
+                    client_ip=client_ip,
+                    reason="invalid_jwt",
+                )
+            )
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+    res = await session.execute(select(User).where(User.id == claims.sub))
+    user = res.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+    return user

@@ -37,6 +37,22 @@ class Settings(BaseSettings):
     # If unset, all requests are allowed.
     api_key: str | None = None
 
+    # JWT auth (used for OAuth logins + browser clients)
+    jwt_secret: str | None = None
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_minutes: int = 60
+    jwt_issuer: str = "agentpress"
+    jwt_audience: str = "agentpress"
+
+    # OAuth (Authorization Code)
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uri: str | None = None
+
+    github_oauth_client_id: str | None = None
+    github_oauth_client_secret: str | None = None
+    github_oauth_redirect_uri: str | None = None
+
     # HTTP security hardening
     max_request_body_bytes: int = 1_000_000  # ~1MB
     rate_limit_enabled: bool = True

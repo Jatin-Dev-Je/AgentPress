@@ -41,6 +41,42 @@ Then pass it as either:
 - `X-API-Key: your-secret`, or
 - `Authorization: Bearer your-secret`
 
+### Optional JWT + OAuth (browser clients)
+
+Agentpress can also issue JWT access tokens via Google/GitHub OAuth.
+
+Configure JWT (required for OAuth):
+```powershell
+$env:AGENTPRESS_JWT_SECRET = "change-me"
+```
+
+Configure one provider (you will fill these in):
+```powershell
+# Google
+$env:AGENTPRESS_GOOGLE_OAUTH_CLIENT_ID = ""
+$env:AGENTPRESS_GOOGLE_OAUTH_CLIENT_SECRET = ""
+$env:AGENTPRESS_GOOGLE_OAUTH_REDIRECT_URI = "http://localhost:8000/auth/oauth/google/callback"
+
+# GitHub
+$env:AGENTPRESS_GITHUB_OAUTH_CLIENT_ID = ""
+$env:AGENTPRESS_GITHUB_OAUTH_CLIENT_SECRET = ""
+$env:AGENTPRESS_GITHUB_OAUTH_REDIRECT_URI = "http://localhost:8000/auth/oauth/github/callback"
+```
+
+Login flow (redirect-based):
+- `GET /auth/oauth/google/login` → redirects to Google
+- `GET /auth/oauth/github/login` → redirects to GitHub
+
+On success, the callback returns:
+- `{ access_token, token_type, user }`
+
+Use the token for protected endpoints:
+```powershell
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/auth/me -Headers @{
+	Authorization = "Bearer <access_token>"
+}
+```
+
 ### Security defaults
 
 Agentpress ships with basic HTTP hardening enabled by default:

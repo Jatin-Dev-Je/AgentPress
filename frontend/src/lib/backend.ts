@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 export function getBackendUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+  const raw = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
   return raw.replace(/\/+$/, "");
 }
 

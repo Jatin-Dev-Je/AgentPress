@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sqlalchemy.engine import make_url
@@ -10,6 +11,9 @@ from app.db.models import Base
 from app.db.session import engine
 
 
+logger = logging.getLogger(__name__)
+
+
 async def init_db() -> None:
     url = make_url(settings.database_url)
 
@@ -17,6 +21,14 @@ async def init_db() -> None:
     if settings.run_migrations_on_startup:
         await upgrade_to_head(database_url=settings.database_url)
         return
+
+    if not url.drivername.startswith("sqlite") and settings.auto_create_tables:
+        logger.warning(
+            "Database URL is non-SQLite (%s) with AGENTPRESS_AUTO_CREATE_TABLES=true. "
+            "This may cause schema drift. Prefer Alembic migrations by setting "
+            "AGENTPRESS_RUN_MIGRATIONS_ON_STARTUP=true and AGENTPRESS_AUTO_CREATE_TABLES=false.",
+            url.drivername,
+        )
 
     if not settings.auto_create_tables:
         return

@@ -4,7 +4,7 @@ import base64
 import hashlib
 import secrets
 from datetime import datetime
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -110,6 +110,30 @@ def _auth_success_response(request: Request, *, jwt_token: str, user: User, prov
     return resp
 
 
+def _append_query(url: str, params: dict[str, str]) -> str:
+    parts = urlsplit(url)
+    q = dict(parse_qsl(parts.query, keep_blank_values=True))
+    q.update(params)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
+
+
+def _oauth_error(provider: str, *, request: Request, status_code: int, error: str) -> RedirectResponse:
+    """OAuth callback error handler.
+
+    If `AGENTPRESS_AUTH_REDIRECT_ERROR_URL` is set, redirect there with `?error=...`.
+    Otherwise, raise an HTTPException.
+    """
+
+    if not settings.auth_redirect_error_url:
+        raise HTTPException(status_code=status_code, detail=error)
+
+    url = _append_query(settings.auth_redirect_error_url, {"error": error, "provider": provider})
+    resp = RedirectResponse(url=url)
+    resp.delete_cookie(key=_state_cookie_name(provider), path=f"/auth/oauth/{provider}")
+    resp.delete_cookie(key=_pkce_cookie_name(provider), path=f"/auth/oauth/{provider}")
+    return resp
+
+
 @router.get("/me")
 async def me(user: User | None = Depends(require_auth)) -> dict:
     if user is None:
@@ -165,7 +189,7 @@ async def google_callback(
 ) -> dict:
     expected = _pop_state_cookie(request, "google")
     if not expected or expected != state:
-        raise HTTPException(status_code=400, detail="invalid oauth state")
+        return _oauth_error("google", request=request, status_code=400, error="invalid_oauth_state")
 
     if not settings.google_oauth_client_id or not settings.google_oauth_client_secret or not settings.google_oauth_redirect_uri:
         raise HTTPException(status_code=500, detail="google oauth not configured")
@@ -191,15 +215,15 @@ async def google_callback(
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if r.status_code >= 400:
-            raise HTTPException(status_code=400, detail="oauth token exchange failed")
+            return _oauth_error("google", request=request, status_code=400, error="oauth_token_exchange_failed")
         token = r.json()
         access_token = token.get("access_token")
         if not isinstance(access_token, str) or not access_token:
-            raise HTTPException(status_code=400, detail="oauth token missing")
+            return _oauth_error("google", request=request, status_code=400, error="oauth_token_missing")
 
         u = await client.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
         if u.status_code >= 400:
-            raise HTTPException(status_code=400, detail="oauth userinfo failed")
+            return _oauth_error("google", request=request, status_code=400, error="oauth_userinfo_failed")
         profile = u.json()
 
     provider_user_id = profile.get("sub")
@@ -208,9 +232,9 @@ async def google_callback(
     picture = profile.get("picture")
 
     if not isinstance(provider_user_id, str) or not provider_user_id:
-        raise HTTPException(status_code=400, detail="oauth profile missing sub")
+        return _oauth_error("google", request=request, status_code=400, error="oauth_profile_missing_sub")
     if not isinstance(email, str) or not email:
-        raise HTTPException(status_code=400, detail="oauth profile missing email")
+        return _oauth_error("google", request=request, status_code=400, error="oauth_profile_missing_email")
 
     user = await _upsert_oauth_user(
         session=session,
@@ -224,7 +248,7 @@ async def google_callback(
     try:
         jwt_token = create_access_token(user_id=user.id, email=user.email, name=user.name)
     except AuthError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return _oauth_error("google", request=request, status_code=500, error=str(e))
 
     return _auth_success_response(request, jwt_token=jwt_token, user=user, provider="google")
 
@@ -267,7 +291,7 @@ async def github_callback(
 ) -> dict:
     expected = _pop_state_cookie(request, "github")
     if not expected or expected != state:
-        raise HTTPException(status_code=400, detail="invalid oauth state")
+        return _oauth_error("github", request=request, status_code=400, error="invalid_oauth_state")
 
     if not settings.github_oauth_client_id or not settings.github_oauth_client_secret or not settings.github_oauth_redirect_uri:
         raise HTTPException(status_code=500, detail="github oauth not configured")
@@ -290,18 +314,18 @@ async def github_callback(
             headers={"Accept": "application/json"},
         )
         if r.status_code >= 400:
-            raise HTTPException(status_code=400, detail="oauth token exchange failed")
+            return _oauth_error("github", request=request, status_code=400, error="oauth_token_exchange_failed")
         token = r.json()
         access_token = token.get("access_token")
         if not isinstance(access_token, str) or not access_token:
-            raise HTTPException(status_code=400, detail="oauth token missing")
+            return _oauth_error("github", request=request, status_code=400, error="oauth_token_missing")
 
         u = await client.get(
             "https://api.github.com/user",
             headers={"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"},
         )
         if u.status_code >= 400:
-            raise HTTPException(status_code=400, detail="oauth userinfo failed")
+            return _oauth_error("github", request=request, status_code=400, error="oauth_userinfo_failed")
         profile = u.json()
 
         emails = await client.get(
@@ -335,9 +359,9 @@ async def github_callback(
                 email = primary.get("email")
 
     if not provider_user_id:
-        raise HTTPException(status_code=400, detail="oauth profile missing id")
+        return _oauth_error("github", request=request, status_code=400, error="oauth_profile_missing_id")
     if not email:
-        raise HTTPException(status_code=400, detail="oauth profile missing email")
+        return _oauth_error("github", request=request, status_code=400, error="oauth_profile_missing_email")
 
     user = await _upsert_oauth_user(
         session=session,
@@ -351,7 +375,7 @@ async def github_callback(
     try:
         jwt_token = create_access_token(user_id=user.id, email=user.email, name=user.name)
     except AuthError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return _oauth_error("github", request=request, status_code=500, error=str(e))
 
     return _auth_success_response(request, jwt_token=jwt_token, user=user, provider="github")
 

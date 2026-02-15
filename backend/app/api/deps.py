@@ -91,6 +91,14 @@ async def require_auth(
 
     bearer = (authorization or "").strip()
     if not bearer.lower().startswith("bearer "):
+        # Optional cookie auth for browser clients.
+        if settings.auth_cookie_enabled:
+            cookie_name = (settings.auth_cookie_name or "").strip() or "agentpress_access_token"
+            cookie_token = (request.cookies.get(cookie_name) or "").strip()
+            if cookie_token:
+                bearer = f"Bearer {cookie_token}"
+
+    if not bearer.lower().startswith("bearer "):
         if settings.audit_enabled:
             client_ip = request.client.host if request.client else None
             _auth_failures.append(

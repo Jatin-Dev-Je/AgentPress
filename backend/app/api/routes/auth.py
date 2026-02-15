@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import secrets
 from datetime import datetime
-from urllib.parse import quote
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -24,6 +26,15 @@ def _state_cookie_name(provider: str) -> str:
     return f"agentpress_oauth_state_{provider}"
 
 
+def _pkce_cookie_name(provider: str) -> str:
+    return f"agentpress_oauth_pkce_{provider}"
+
+
+def _pkce_challenge(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
+
+
 def _set_state_cookie(resp: RedirectResponse, *, provider: str, state: str, secure: bool) -> None:
     resp.set_cookie(
         key=_state_cookie_name(provider),
@@ -36,12 +47,67 @@ def _set_state_cookie(resp: RedirectResponse, *, provider: str, state: str, secu
     )
 
 
+def _set_pkce_cookie(resp: RedirectResponse, *, provider: str, verifier: str, secure: bool) -> None:
+    resp.set_cookie(
+        key=_pkce_cookie_name(provider),
+        value=verifier,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=10 * 60,
+        path=f"/auth/oauth/{provider}",
+    )
+
+
 def _pop_state_cookie(request: Request, provider: str) -> str | None:
     return request.cookies.get(_state_cookie_name(provider))
 
 
+def _pop_pkce_cookie(request: Request, provider: str) -> str | None:
+    return request.cookies.get(_pkce_cookie_name(provider))
+
+
 def _clear_state_cookie(resp: RedirectResponse, provider: str) -> None:
     resp.delete_cookie(key=_state_cookie_name(provider), path=f"/auth/oauth/{provider}")
+
+
+def _clear_pkce_cookie(resp: RedirectResponse, provider: str) -> None:
+    resp.delete_cookie(key=_pkce_cookie_name(provider), path=f"/auth/oauth/{provider}")
+
+
+def _maybe_set_auth_cookie(resp: JSONResponse | RedirectResponse, request: Request, jwt_token: str) -> None:
+    if not settings.auth_cookie_enabled:
+        return
+    cookie_name = (settings.auth_cookie_name or "").strip() or "agentpress_access_token"
+    max_age = int(max(1, settings.jwt_access_token_minutes)) * 60
+    resp.set_cookie(
+        key=cookie_name,
+        value=jwt_token,
+        httponly=True,
+        secure=(request.url.scheme == "https"),
+        samesite=settings.auth_cookie_samesite,
+        max_age=max_age,
+        domain=settings.auth_cookie_domain,
+        path=settings.auth_cookie_path,
+    )
+
+
+def _auth_success_response(request: Request, *, jwt_token: str, user: User, provider: str) -> JSONResponse | RedirectResponse:
+    if settings.auth_redirect_success_url:
+        resp: RedirectResponse | JSONResponse = RedirectResponse(url=settings.auth_redirect_success_url)
+    else:
+        resp = JSONResponse(
+            {
+                "access_token": jwt_token,
+                "token_type": "bearer",
+                "user": {"id": user.id, "email": user.email},
+            }
+        )
+
+    _maybe_set_auth_cookie(resp, request, jwt_token)
+    resp.delete_cookie(key=_state_cookie_name(provider), path=f"/auth/oauth/{provider}")
+    resp.delete_cookie(key=_pkce_cookie_name(provider), path=f"/auth/oauth/{provider}")
+    return resp
 
 
 @router.get("/me")
@@ -64,20 +130,29 @@ async def google_login(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=500, detail="google oauth not configured")
 
     state = secrets.token_urlsafe(32)
+    secure = request.url.scheme == "https"
 
-    scope = "openid email profile"
-    url = (
-        "https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={settings.google_oauth_client_id}"
-        f"&redirect_uri={settings.google_oauth_redirect_uri}"
-        "&response_type=code"
-        f"&scope={quote(scope)}"
-        f"&state={state}"
-        "&include_granted_scopes=true"
-    )
+    params: dict[str, str] = {
+        "client_id": settings.google_oauth_client_id,
+        "redirect_uri": settings.google_oauth_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "include_granted_scopes": "true",
+    }
+
+    # Optional PKCE (disabled by default; can be enabled later via env var)
+    if getattr(settings, "oauth_pkce_enabled", False):
+        verifier = secrets.token_urlsafe(48)
+        params["code_challenge"] = _pkce_challenge(verifier)
+        params["code_challenge_method"] = "S256"
+
+    url = "https://accounts.google.com/o/oauth2/v2/auth" + "?" + urlencode(params)
 
     resp = RedirectResponse(url=url)
-    _set_state_cookie(resp, provider="google", state=state, secure=(request.url.scheme == "https"))
+    _set_state_cookie(resp, provider="google", state=state, secure=secure)
+    if getattr(settings, "oauth_pkce_enabled", False):
+        _set_pkce_cookie(resp, provider="google", verifier=verifier, secure=secure)  # type: ignore[name-defined]
     return resp
 
 
@@ -95,6 +170,10 @@ async def google_callback(
     if not settings.google_oauth_client_id or not settings.google_oauth_client_secret or not settings.google_oauth_redirect_uri:
         raise HTTPException(status_code=500, detail="google oauth not configured")
 
+    code_verifier = None
+    if getattr(settings, "oauth_pkce_enabled", False):
+        code_verifier = _pop_pkce_cookie(request, "google")
+
     token_url = "https://oauth2.googleapis.com/token"
     userinfo_url = "https://openidconnect.googleapis.com/v1/userinfo"
 
@@ -107,6 +186,7 @@ async def google_callback(
                 "client_secret": settings.google_oauth_client_secret,
                 "redirect_uri": settings.google_oauth_redirect_uri,
                 "grant_type": "authorization_code",
+                **({"code_verifier": code_verifier} if code_verifier else {}),
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -146,9 +226,7 @@ async def google_callback(
     except AuthError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    resp = JSONResponse({"access_token": jwt_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email}})
-    resp.delete_cookie(key=_state_cookie_name("google"), path="/auth/oauth/google")
-    return resp
+    return _auth_success_response(request, jwt_token=jwt_token, user=user, provider="google")
 
 
 @router.get("/oauth/github/login")
@@ -157,18 +235,26 @@ async def github_login(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=500, detail="github oauth not configured")
 
     state = secrets.token_urlsafe(32)
-    scope = "read:user user:email"
+    secure = request.url.scheme == "https"
 
-    url = (
-        "https://github.com/login/oauth/authorize"
-        f"?client_id={settings.github_oauth_client_id}"
-        f"&redirect_uri={settings.github_oauth_redirect_uri}"
-        f"&scope={quote(scope)}"
-        f"&state={state}"
-    )
+    params: dict[str, str] = {
+        "client_id": settings.github_oauth_client_id,
+        "redirect_uri": settings.github_oauth_redirect_uri,
+        "scope": "read:user user:email",
+        "state": state,
+    }
+
+    if getattr(settings, "oauth_pkce_enabled", False):
+        verifier = secrets.token_urlsafe(48)
+        params["code_challenge"] = _pkce_challenge(verifier)
+        params["code_challenge_method"] = "S256"
+
+    url = "https://github.com/login/oauth/authorize" + "?" + urlencode(params)
 
     resp = RedirectResponse(url=url)
-    _set_state_cookie(resp, provider="github", state=state, secure=(request.url.scheme == "https"))
+    _set_state_cookie(resp, provider="github", state=state, secure=secure)
+    if getattr(settings, "oauth_pkce_enabled", False):
+        _set_pkce_cookie(resp, provider="github", verifier=verifier, secure=secure)  # type: ignore[name-defined]
     return resp
 
 
@@ -186,6 +272,10 @@ async def github_callback(
     if not settings.github_oauth_client_id or not settings.github_oauth_client_secret or not settings.github_oauth_redirect_uri:
         raise HTTPException(status_code=500, detail="github oauth not configured")
 
+    code_verifier = None
+    if getattr(settings, "oauth_pkce_enabled", False):
+        code_verifier = _pop_pkce_cookie(request, "github")
+
     token_url = "https://github.com/login/oauth/access_token"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
@@ -195,6 +285,7 @@ async def github_callback(
                 "client_secret": settings.github_oauth_client_secret,
                 "code": code,
                 "redirect_uri": settings.github_oauth_redirect_uri,
+                **({"code_verifier": code_verifier} if code_verifier else {}),
             },
             headers={"Accept": "application/json"},
         )
@@ -262,8 +353,21 @@ async def github_callback(
     except AuthError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    resp = JSONResponse({"access_token": jwt_token, "token_type": "bearer", "user": {"id": user.id, "email": user.email}})
-    resp.delete_cookie(key=_state_cookie_name("github"), path="/auth/oauth/github")
+    return _auth_success_response(request, jwt_token=jwt_token, user=user, provider="github")
+
+
+@router.post("/logout")
+async def logout(request: Request) -> JSONResponse:
+    if not settings.auth_cookie_enabled:
+        return JSONResponse({"ok": True})
+
+    cookie_name = (settings.auth_cookie_name or "").strip() or "agentpress_access_token"
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(
+        key=cookie_name,
+        domain=settings.auth_cookie_domain,
+        path=settings.auth_cookie_path,
+    )
     return resp
 
 

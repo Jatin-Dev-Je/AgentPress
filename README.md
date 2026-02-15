@@ -50,6 +50,17 @@ Configure JWT (required for OAuth):
 $env:AGENTPRESS_JWT_SECRET = "change-me"
 ```
 
+Optional: HttpOnly cookie auth (recommended for browser apps):
+```powershell
+$env:AGENTPRESS_AUTH_COOKIE_ENABLED = "true"
+$env:AGENTPRESS_AUTH_REDIRECT_SUCCESS_URL = "http://localhost:3000"  # your frontend
+```
+
+Optional: PKCE (extra OAuth hardening; keep false unless you know you need it):
+```powershell
+$env:AGENTPRESS_OAUTH_PKCE_ENABLED = "false"
+```
+
 Configure one provider (you will fill these in):
 ```powershell
 # Google

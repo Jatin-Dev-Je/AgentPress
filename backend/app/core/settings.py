@@ -44,7 +44,23 @@ class Settings(BaseSettings):
     jwt_issuer: str = "agentpress"
     jwt_audience: str = "agentpress"
 
+    # Optional: store JWT in an HttpOnly cookie for browser clients.
+    # If enabled, `require_auth` will also accept the cookie token when no
+    # Authorization header is present.
+    auth_cookie_enabled: bool = False
+    auth_cookie_name: str = "agentpress_access_token"
+    auth_cookie_samesite: str = "lax"  # lax|strict|none
+    auth_cookie_domain: str | None = None
+    auth_cookie_path: str = "/"
+
+    # Optional: after OAuth callback, redirect to this URL instead of returning JSON.
+    # When used with cookie auth, you can avoid exposing the token to the frontend.
+    auth_redirect_success_url: str | None = None
+    auth_redirect_error_url: str | None = None
+
     # OAuth (Authorization Code)
+    oauth_pkce_enabled: bool = False
+
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None

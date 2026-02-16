@@ -105,6 +105,20 @@ Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/auth/me -Headers @{
 }
 ```
 
+### Dev-only: disable auth
+
+For local debugging you can bypass auth checks entirely:
+
+```dotenv
+AGENTPRESS_AUTH_DISABLED=true
+```
+
+If port `8000` is busy, you can start the backend on a different port:
+
+```powershell
+./scripts/dev.ps1 -Port 8001
+```
+
 ### Security defaults
 
 Agentpress ships with basic HTTP hardening enabled by default:

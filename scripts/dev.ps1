@@ -1,5 +1,6 @@
 param(
   [int]$Port = 8000,
+  [switch]$AutoPort,
   [ValidateSet('manual','auto','disabled')]
   [string]$ToolMode = 'manual',
   [string]$OllamaModel = 'llama3',
@@ -23,6 +24,20 @@ if (-not (Test-Path $PythonExe)) {
 
 $DataDir = Join-Path $RepoRoot ".data"
 New-Item -ItemType Directory -Path $DataDir -Force | Out-Null
+
+if ($AutoPort) {
+  $originalPort = $Port
+  for ($i = 0; $i -lt 20; $i++) {
+    $inUse = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue).Count -gt 0
+    if (-not $inUse) {
+      break
+    }
+    $Port++
+  }
+  if ($Port -ne $originalPort) {
+    Write-Host "Port :$originalPort is in use; using :$Port instead" -ForegroundColor Yellow
+  }
+}
 
 Push-Location $BackendDir
 try {

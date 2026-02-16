@@ -73,6 +73,9 @@ async def require_auth(
     enabling user auth for browser clients.
     """
 
+    if getattr(settings, "auth_disabled", False):
+        return None
+
     expected_key = (settings.api_key or "").strip()
     has_jwt = bool((settings.jwt_secret or "").strip())
 

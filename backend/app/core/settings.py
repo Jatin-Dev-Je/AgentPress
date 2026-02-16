@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # If unset, all requests are allowed.
     api_key: str | None = None
 
+    # Temporary dev escape hatch: if true, all auth checks are bypassed.
+    # Do NOT enable in production.
+    auth_disabled: bool = False
+
     # JWT auth (used for OAuth logins + browser clients)
     jwt_secret: str | None = None
     jwt_algorithm: str = "HS256"

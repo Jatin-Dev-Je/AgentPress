@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import secrets
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -20,6 +21,8 @@ from app.db.session import get_session
 
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def _state_cookie_name(provider: str) -> str:
@@ -136,6 +139,15 @@ def _oauth_error(provider: str, *, request: Request, status_code: int, error: st
 
 @router.get("/me")
 async def me(user: User | None = Depends(require_auth)) -> dict:
+    if getattr(settings, "auth_disabled", False):
+        return {
+            "id": "dev",
+            "email": "dev@local",
+            "name": "Dev User",
+            "avatar_url": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "last_login_at": datetime.utcnow().isoformat(),
+        }
     if user is None:
         raise HTTPException(status_code=401, detail="unauthorized")
     return {
@@ -191,8 +203,16 @@ async def google_callback(
     if not expected or expected != state:
         return _oauth_error("google", request=request, status_code=400, error="invalid_oauth_state")
 
-    if not settings.google_oauth_client_id or not settings.google_oauth_client_secret or not settings.google_oauth_redirect_uri:
-        raise HTTPException(status_code=500, detail="google oauth not configured")
+    missing: list[str] = []
+    if not settings.google_oauth_client_id:
+        missing.append("AGENTPRESS_GOOGLE_OAUTH_CLIENT_ID")
+    if not settings.google_oauth_client_secret:
+        missing.append("AGENTPRESS_GOOGLE_OAUTH_CLIENT_SECRET")
+    if not settings.google_oauth_redirect_uri:
+        missing.append("AGENTPRESS_GOOGLE_OAUTH_REDIRECT_URI")
+    if missing:
+        logger.error("Google OAuth not configured; missing=%s", ",".join(missing))
+        return _oauth_error("google", request=request, status_code=500, error="google_oauth_not_configured")
 
     code_verifier = None
     if getattr(settings, "oauth_pkce_enabled", False):
@@ -215,6 +235,11 @@ async def google_callback(
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if r.status_code >= 400:
+            logger.warning(
+                "Google OAuth token exchange failed: status=%s body=%s",
+                r.status_code,
+                (r.text or "")[:500],
+            )
             return _oauth_error("google", request=request, status_code=400, error="oauth_token_exchange_failed")
         token = r.json()
         access_token = token.get("access_token")
@@ -223,6 +248,11 @@ async def google_callback(
 
         u = await client.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
         if u.status_code >= 400:
+            logger.warning(
+                "Google OAuth userinfo failed: status=%s body=%s",
+                u.status_code,
+                (u.text or "")[:500],
+            )
             return _oauth_error("google", request=request, status_code=400, error="oauth_userinfo_failed")
         profile = u.json()
 

@@ -26,6 +26,12 @@ Starts the FastAPI backend (SQLite) and the Next.js frontend together:
 ./scripts/dev-full.ps1
 ```
 
+If port `8000` is busy, auto-select a free backend port and pass it to the frontend via `NEXT_PUBLIC_BACKEND_URL`:
+
+```powershell
+./scripts/dev-full.ps1 -AutoBackendPort
+```
+
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8000
 

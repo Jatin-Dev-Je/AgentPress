@@ -1,6 +1,7 @@
 param(
   [int]$BackendPort = 8000,
   [int]$FrontendPort = 3000,
+  [switch]$AutoBackendPort,
   [ValidateSet('manual','auto','disabled')]
   [string]$ToolMode = 'manual',
   [string]$OllamaModel = 'llama3',
@@ -11,6 +12,18 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+
+if ($AutoBackendPort) {
+  $originalPort = $BackendPort
+  for ($i = 0; $i -lt 20; $i++) {
+    $inUse = @(Get-NetTCPConnection -LocalPort $BackendPort -State Listen -ErrorAction SilentlyContinue).Count -gt 0
+    if (-not $inUse) { break }
+    $BackendPort++
+  }
+  if ($BackendPort -ne $originalPort) {
+    Write-Host "Backend port :$originalPort is in use; using :$BackendPort instead" -ForegroundColor Yellow
+  }
+}
 
 Write-Host "Starting backend on :$BackendPort and frontend on :$FrontendPort" -ForegroundColor Cyan
 
@@ -43,7 +56,7 @@ $backendArgs = @(
   $backendCommand
 )
 
-$frontendCommand = "Set-Location '$RepoRoot/frontend'; if (-not (Test-Path node_modules)) { npm install }; `$env:PORT='$FrontendPort'; npm run dev"
+$frontendCommand = "Set-Location '$RepoRoot/frontend'; if (-not (Test-Path node_modules)) { npm install }; `$env:PORT='$FrontendPort'; `$env:NEXT_PUBLIC_BACKEND_URL='http://localhost:$BackendPort'; npm run dev"
 $frontendArgs = @(
   '-NoProfile',
   '-ExecutionPolicy',

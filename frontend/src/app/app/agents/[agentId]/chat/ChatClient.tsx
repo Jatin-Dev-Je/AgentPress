@@ -189,7 +189,10 @@ export default function ChatClient({ agentId }: { agentId: string }) {
       </div>
 
       {error && (
-        <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100/90">
+        <div
+          role="alert"
+          className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100/90"
+        >
           {error}
         </div>
       )}
@@ -242,6 +245,7 @@ export default function ChatClient({ agentId }: { agentId: string }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Message your agent…"
+              aria-label="Message"
               rows={1}
               className="max-h-40 flex-1 resize-none bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-zinc-500"
               onKeyDown={(e) => {

@@ -135,6 +135,19 @@ export default function ChatClient({ agentId }: { agentId: string }) {
         }
 
         if (msg.event === "error") {
+          if (isRecord(payload)) {
+            const message = payload.message;
+            const code = payload.code;
+            if (typeof message === "string" && message.trim()) {
+              if (typeof code === "string" && code.trim()) {
+                setError(`${code}: ${message}`);
+              } else {
+                setError(message);
+              }
+              continue;
+            }
+          }
+
           setError("The backend reported an error during streaming.");
           continue;
         }
@@ -176,53 +189,55 @@ export default function ChatClient({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      <div className="mt-6 grid gap-4">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="space-y-3">
-            {items.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-zinc-950/30 p-4 text-sm text-zinc-300">
-                Start by sending a message. Responses stream in real-time.
-              </div>
-            ) : (
-              items.map((it, idx) => {
-                if (it.kind === "event") {
+      <div className="mt-6 flex min-h-[70vh] flex-col gap-4">
+        <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex h-full flex-col">
+            <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+              {items.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-zinc-950/30 p-4 text-sm text-zinc-300">
+                  Start by sending a message. Responses stream in real-time.
+                </div>
+              ) : (
+                items.map((it, idx) => {
+                  if (it.kind === "event") {
+                    return (
+                      <div key={idx} className="text-xs text-zinc-400">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                          {it.label}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  const isUser = it.role === "user";
                   return (
-                    <div key={idx} className="text-xs text-zinc-400">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                        {it.label}
-                      </span>
+                    <div key={idx} className={"flex " + (isUser ? "justify-end" : "justify-start")}>
+                      <div
+                        className={
+                          "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ring-1 " +
+                          (isUser
+                            ? "bg-white text-zinc-950 ring-white/10"
+                            : "bg-zinc-950/30 text-zinc-100 ring-white/10")
+                        }
+                      >
+                        {it.text || (it.role === "assistant" && sending ? "…" : "")}
+                      </div>
                     </div>
                   );
-                }
-
-                const isUser = it.role === "user";
-                return (
-                  <div key={idx} className={"flex " + (isUser ? "justify-end" : "justify-start")}>
-                    <div
-                      className={
-                        "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ring-1 " +
-                        (isUser
-                          ? "bg-white text-zinc-950 ring-white/10"
-                          : "bg-zinc-950/30 text-zinc-100 ring-white/10")
-                      }
-                    >
-                      {it.text || (it.role === "assistant" && sending ? "…" : "")}
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                })
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex gap-3">
+        <div className="mt-auto shrink-0">
+          <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-zinc-950/30 px-3 py-1.5 ring-1 ring-white/5">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Message your agent…"
-              rows={2}
-              className="flex-1 resize-none rounded-2xl border border-white/10 bg-zinc-950/30 px-3 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-white/20"
+              rows={1}
+              className="flex-1 resize-none bg-transparent py-0.5 text-sm leading-5 outline-none placeholder:text-zinc-500"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -235,13 +250,11 @@ export default function ChatClient({ agentId }: { agentId: string }) {
             <button
               onClick={() => void send()}
               disabled={sending || !input.trim()}
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl bg-white px-5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 disabled:opacity-60"
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-white px-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 disabled:opacity-60"
             >
-              {sending ? "Sending…" : "Send"}
+              Send
             </button>
           </div>
-
-          <div className="mt-2 text-xs text-zinc-500">Enter to send · Shift+Enter for newline</div>
         </div>
       </div>
     </AppShell>

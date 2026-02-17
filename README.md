@@ -276,6 +276,8 @@ Set in `.env` (or env vars):
 ollama pull llama3
 ```
 
+If you already have a different model installed (e.g. `llama3.2:1b`), set `AGENTPRESS_OLLAMA_MODEL` to that model name instead.
+
 3) Point Agentpress at your local Ollama:
 - Backend running on host: `AGENTPRESS_OLLAMA_BASE_URL=http://localhost:11434`
 - Backend running in Docker on Windows/Mac: `AGENTPRESS_OLLAMA_BASE_URL=http://host.docker.internal:11434`

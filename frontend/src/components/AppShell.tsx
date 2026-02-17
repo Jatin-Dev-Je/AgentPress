@@ -87,8 +87,9 @@ export function AppShell({
             <nav className="mt-8 grid gap-2">
               <Link
                 href="/app"
+                aria-current={activeRoute === "agents" ? "page" : undefined}
                 className={
-                  "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition " +
+                  "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/15 " +
                   (activeRoute === "agents"
                     ? "border-white/20 bg-white/10"
                     : "border-white/10 bg-white/5 hover:bg-white/10")

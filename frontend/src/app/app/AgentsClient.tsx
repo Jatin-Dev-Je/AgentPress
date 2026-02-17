@@ -97,46 +97,64 @@ export default function AgentsClient() {
               <div className="text-sm font-semibold">Agents</div>
               <div className="text-xs text-zinc-400">Select or create an agent</div>
             </div>
+            {!loading && (
+              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                {agents.length} total
+              </div>
+            )}
           </div>
 
           <div className="mt-4 grid gap-3">
+            <label className="sr-only" htmlFor="agent-name">
+              Agent name
+            </label>
             <input
+              id="agent-name"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="New agent name"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/30 px-3 text-sm outline-none ring-0 placeholder:text-zinc-500 focus:border-white/20"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/30 px-3 text-sm outline-none ring-0 placeholder:text-zinc-500 focus:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
             />
             <div className="grid grid-cols-2 gap-3">
+              <label className="sr-only" htmlFor="agent-model">
+                Model provider
+              </label>
               <select
+                id="agent-model"
                 value={form.model}
                 onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/30 px-3 text-sm outline-none focus:border-white/20"
+                className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/30 px-3 text-sm outline-none focus:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
               >
                 <option value="ollama">ollama</option>
                 <option value="openai">openai</option>
                 <option value="anthropic">anthropic</option>
               </select>
+              <label className="sr-only" htmlFor="agent-temp">
+                Temperature
+              </label>
               <input
+                id="agent-temp"
                 type="number"
                 min={0}
                 max={2}
                 step={0.1}
                 value={form.temperature}
                 onChange={(e) => setForm((f) => ({ ...f, temperature: Number(e.target.value) }))}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/30 px-3 text-sm outline-none focus:border-white/20"
+                className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/30 px-3 text-sm outline-none focus:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
               />
             </div>
+            <div className="-mt-1 text-xs text-zinc-500">Temperature range: 0.0–2.0</div>
             <textarea
               value={form.system_prompt}
               onChange={(e) => setForm((f) => ({ ...f, system_prompt: e.target.value }))}
               rows={4}
-              className="w-full resize-none rounded-2xl border border-white/10 bg-zinc-950/30 px-3 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-white/20"
+              className="w-full resize-none rounded-2xl border border-white/10 bg-zinc-950/30 px-3 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
             />
 
             <button
               onClick={createAgent}
               disabled={saving}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:opacity-60"
             >
               {saving ? "Creating…" : "Create agent"}
             </button>
@@ -167,6 +185,7 @@ export default function AgentsClient() {
                     <button
                       key={a.id}
                       onClick={() => setSelectedId(a.id)}
+                      aria-pressed={active}
                       className={
                         "w-full rounded-2xl border px-3 py-2 text-left transition " +
                         (active
@@ -210,7 +229,7 @@ export default function AgentsClient() {
 
                 <Link
                   href={`/app/agents/${selected.id}/chat`}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
                 >
                   Open chat
                 </Link>
@@ -218,7 +237,7 @@ export default function AgentsClient() {
 
               <div className="mt-6 flex-1 rounded-2xl border border-white/10 bg-zinc-950/30 p-4">
                 <div className="text-xs font-semibold text-zinc-300">System prompt</div>
-                <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-200/90">
+                <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-200/90">
                   {selected.system_prompt || "(empty)"}
                 </div>
               </div>

@@ -23,6 +23,7 @@ export default function ChatClient({ agentId }: { agentId: string }) {
   const [sending, setSending] = useState(false);
 
   const assistantIndexRef = useRef<number | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   function isRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object";
@@ -58,6 +59,10 @@ export default function ChatClient({ agentId }: { agentId: string }) {
       cancelled = true;
     };
   }, [agentId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [items, sending]);
 
   async function send() {
     const text = input.trim();
@@ -192,7 +197,7 @@ export default function ChatClient({ agentId }: { agentId: string }) {
       <div className="mt-6 flex min-h-[70vh] flex-col gap-4">
         <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="flex h-full flex-col">
-            <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="flex-1 space-y-3 overflow-y-auto pr-1" role="log" aria-live="polite">
               {items.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-zinc-950/30 p-4 text-sm text-zinc-300">
                   Start by sending a message. Responses stream in real-time.
@@ -226,6 +231,7 @@ export default function ChatClient({ agentId }: { agentId: string }) {
                   );
                 })
               )}
+              <div ref={bottomRef} />
             </div>
           </div>
         </div>
@@ -237,7 +243,7 @@ export default function ChatClient({ agentId }: { agentId: string }) {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Message your agent…"
               rows={1}
-              className="flex-1 resize-none bg-transparent py-0.5 text-sm leading-5 outline-none placeholder:text-zinc-500"
+              className="max-h-40 flex-1 resize-none bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-zinc-500"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -250,11 +256,13 @@ export default function ChatClient({ agentId }: { agentId: string }) {
             <button
               onClick={() => void send()}
               disabled={sending || !input.trim()}
-              className="inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-white px-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 disabled:opacity-60"
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-white px-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:opacity-60"
             >
               Send
             </button>
           </div>
+
+          <div className="mt-2 text-xs text-zinc-500">Enter to send · Shift+Enter for newline</div>
         </div>
       </div>
     </AppShell>

@@ -85,7 +85,7 @@ export default function LoginClient({
         </div>
 
         <div className="lg:justify-self-end">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 ring-1 ring-white/5">
             <div className="text-lg font-semibold tracking-tight">Sign in</div>
             <div className="mt-1 text-sm text-zinc-400">Continue with a provider to start using Agentpress.</div>
 
@@ -111,7 +111,7 @@ export default function LoginClient({
               <button
                 onClick={() => start("google")}
                 disabled={loading || !sessionChecked}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 disabled:opacity-60"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:opacity-60"
               >
                 Continue with Google
               </button>
@@ -119,7 +119,7 @@ export default function LoginClient({
               <button
                 onClick={() => start("github")}
                 disabled={loading || !sessionChecked}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:opacity-60"
               >
                 Continue with GitHub
               </button>

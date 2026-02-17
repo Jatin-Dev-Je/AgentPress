@@ -147,20 +147,24 @@ export default function AgentsClient() {
             <textarea
               value={form.system_prompt}
               onChange={(e) => setForm((f) => ({ ...f, system_prompt: e.target.value }))}
+              placeholder="System prompt (what should this agent do?)"
               rows={4}
               className="w-full resize-none rounded-2xl border border-white/10 bg-zinc-950/30 px-3 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
             />
 
             <button
               onClick={createAgent}
-              disabled={saving}
+              disabled={saving || !form.name.trim()}
               className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:opacity-60"
             >
               {saving ? "Creating…" : "Create agent"}
             </button>
 
             {error && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-100/90">
+              <div
+                role="alert"
+                className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-100/90"
+              >
                 {error}
               </div>
             )}

@@ -61,11 +61,24 @@ class PluginManager:
             await self._clients[key].stop()
             del self._clients[key]
 
-    async def call_tool(self, plugin_id: str, tool_name: str, params: dict, agent_id: str) -> dict:
+    async def call_tool(
+        self,
+        plugin_id: str,
+        tool_name: str,
+        params: dict,
+        agent_id: str,
+        *,
+        context_extra: dict | None = None,
+    ) -> dict:
         manifest = self._registry.load_manifest(plugin_id)
         client = self._get_or_create_client(manifest, agent_id=agent_id)
 
         context = {"agent_id": agent_id}
+        if context_extra:
+            # Do not allow overriding agent_id.
+            context_extra = dict(context_extra)
+            context_extra.pop("agent_id", None)
+            context.update(context_extra)
 
         params_hash = hashlib.sha256(json.dumps(params, sort_keys=True).encode("utf-8")).hexdigest()
         start_ms = int(time.time() * 1000)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import asyncio
 import time
 from urllib.parse import urlparse
@@ -15,6 +16,15 @@ from app.core.version import get_version_info
 from app.db.session import engine
 from app.db.init_db import init_db
 from app.security.middleware import FixedWindowRateLimitMiddleware, MaxBodySizeMiddleware, SecurityHeadersMiddleware
+
+
+# On Windows, some event loop policies do not support asyncio subprocesses.
+# The MCP stdio plugin runtime relies on asyncio.create_subprocess_exec.
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    except Exception:
+        pass
 
 
 def create_app() -> FastAPI:
@@ -47,9 +57,12 @@ def create_app() -> FastAPI:
         )
 
     if settings.cors_enabled:
+        # If no explicit origins are set, allow all for local/dev convenience.
+        allow_origins = settings.cors_allow_origins or ["*"]
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=settings.cors_allow_origins,
+            allow_origins=allow_origins,
+            allow_origin_regex=".*" if allow_origins == ["*"] else None,
             allow_methods=settings.cors_allow_methods,
             allow_headers=settings.cors_allow_headers,
             allow_credentials=settings.cors_allow_credentials,

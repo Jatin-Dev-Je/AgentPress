@@ -1,0 +1,12 @@
+{
+  "id": "file-summarize",
+  "name": "File Summarize",
+  "version": "0.1.0",
+  "description": "Read text files from a configured base directory (safe path restrictions) for summarization and review.",
+  "entrypoint": "main.py",
+  "mcp": {
+    "transport": "stdio"
+  },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

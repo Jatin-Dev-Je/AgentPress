@@ -1,0 +1,12 @@
+{
+  "id": "postgres-query",
+  "name": "Postgres Query",
+  "version": "0.1.0",
+  "description": "Run read-only SQL queries against a Postgres database configured per agent.",
+  "entrypoint": "main.py",
+  "mcp": {
+    "transport": "stdio"
+  },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

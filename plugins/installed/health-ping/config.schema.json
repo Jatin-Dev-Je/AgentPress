@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "allowed_prefixes": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "description": "Optional list of allowed URL prefixes; if empty, allow any http/https."
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}

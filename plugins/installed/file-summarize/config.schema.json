@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "base_dir": {
+      "type": "string",
+      "description": "Base directory that this plugin may access. Only paths within this directory are allowed."
+    },
+    "max_bytes": {
+      "type": "integer",
+      "description": "Maximum bytes to read from any single file.",
+      "default": 200000,
+      "minimum": 1024,
+      "maximum": 2000000
+    },
+    "allowed_extensions": {
+      "type": "array",
+      "description": "Optional allowlist of file extensions (e.g. ['.md', '.txt']). If unset/empty, all extensions are allowed.",
+      "items": {"type": "string"},
+      "default": [
+        ".md",
+        ".txt",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".html",
+        ".css"
+      ]
+    },
+    "deny_patterns": {
+      "type": "array",
+      "description": "Optional list of substrings that are rejected if present in the requested path (defense-in-depth).",
+      "items": {"type": "string"},
+      "default": ["..", "~"]
+    }
+  },
+  "required": ["base_dir"]
+}

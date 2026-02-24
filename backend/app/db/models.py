@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -16,6 +16,7 @@ class Agent(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, default="ollama")
     model: Mapped[str] = mapped_column(String(200), nullable=False)
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     temperature: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
@@ -48,6 +49,7 @@ class Message(Base):
 
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # user | assistant | system | tool
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -75,27 +77,49 @@ class ToolCall(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
-class User(Base):
-    __tablename__ = "users"
+class ToolCallAudit(Base):
+    __tablename__ = "tool_call_audit"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
-    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agent_id: Mapped[str] = mapped_column(String(36), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    tool_call_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("tool_calls.id", ondelete="SET NULL"), nullable=True
+    )
+
+    plugin_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    params: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class OAuthAccount(Base):
-    __tablename__ = "oauth_accounts"
+class AgentPluginConfig(Base):
+    __tablename__ = "agent_plugin_configs"
     __table_args__ = (
-        UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_user"),
+        UniqueConstraint("agent_id", "plugin_id", name="uq_agent_plugin_config"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # google | github
-    provider_user_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(36), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False)
+    plugin_id: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )

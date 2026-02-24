@@ -49,6 +49,7 @@ def _tools_call(params: dict) -> dict:
         raise ValueError("'text' must be a string")
 
     agent_id = context.get("agent_id")
+    plugin_config = context.get("plugin_config")
 
     return {
         "content": [
@@ -57,7 +58,7 @@ def _tools_call(params: dict) -> dict:
                 "text": text,
             }
         ],
-        "meta": {"agent_id": agent_id},
+        "meta": {"agent_id": agent_id, "plugin_config": plugin_config},
         "request_id": uuid.uuid4().hex,
     }
 

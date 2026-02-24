@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import uuid
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from typing import Any
 
 @dataclass
 class StdioProcess:
-    process: asyncio.subprocess.Process
+    process: subprocess.Popen[bytes]
     lock: asyncio.Lock
 
 
@@ -35,7 +36,7 @@ class StdioMcpClient:
         self._proc: StdioProcess | None = None
 
     async def ensure_started(self) -> None:
-        if self._proc and self._proc.process.returncode is None:
+        if self._proc and self._proc.process.poll() is None:
             return
 
         python_exe = sys.executable
@@ -68,12 +69,11 @@ class StdioMcpClient:
             except Exception:
                 pass
 
-        process = await asyncio.create_subprocess_exec(
-            python_exe,
-            str(entry_file),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        process = subprocess.Popen(
+            [python_exe, str(entry_file)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             cwd=str(self._plugin_path),
             env=env,
             **kwargs,
@@ -87,10 +87,10 @@ class StdioMcpClient:
         if not self._proc:
             return
         proc = self._proc.process
-        if proc.returncode is None:
+        if proc.poll() is None:
             proc.terminate()
             try:
-                await asyncio.wait_for(proc.wait(), timeout=2)
+                await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=2)
             except TimeoutError:
                 proc.kill()
         self._proc = None
@@ -158,8 +158,12 @@ class StdioMcpClient:
         stdin = self._proc.process.stdin
         if stdin is None:
             raise RuntimeError("Plugin stdin not available")
-        stdin.write(data)
-        await stdin.drain()
+
+        def _write() -> None:
+            stdin.write(data)
+            stdin.flush()
+
+        await asyncio.to_thread(_write)
 
     async def _read_json_line(self) -> dict:
         assert self._proc is not None
@@ -168,7 +172,7 @@ class StdioMcpClient:
             raise RuntimeError("Plugin stdout not available")
 
         try:
-            line = await asyncio.wait_for(stdout.readline(), timeout=self._timeout_seconds)
+            line = await asyncio.wait_for(asyncio.to_thread(stdout.readline), timeout=self._timeout_seconds)
         except asyncio.TimeoutError as e:
             raise TimeoutError("Plugin call timed out") from e
 
@@ -187,7 +191,7 @@ class StdioMcpClient:
         if stderr is None:
             return ""
         try:
-            data = await asyncio.wait_for(stderr.read(4096), timeout=0.1)
+            data = await asyncio.wait_for(asyncio.to_thread(stderr.read, 4096), timeout=0.1)
         except Exception:
             return ""
         return data.decode("utf-8", errors="replace")

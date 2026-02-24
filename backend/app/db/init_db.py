@@ -45,12 +45,22 @@ async def init_db() -> None:
             try:
                 res = await conn.exec_driver_sql("PRAGMA table_info(agents)")
                 existing_cols = {row[1] for row in res.fetchall()}
+                if "provider" not in existing_cols:
+                    await conn.exec_driver_sql("ALTER TABLE agents ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'ollama'")
                 if "allowed_plugins" not in existing_cols:
                     await conn.exec_driver_sql("ALTER TABLE agents ADD COLUMN allowed_plugins JSON")
                 if "allowed_tools" not in existing_cols:
                     await conn.exec_driver_sql("ALTER TABLE agents ADD COLUMN allowed_tools JSON")
             except Exception:
                 # If the table doesn't exist yet or ALTER fails, create_all below will handle new DBs.
+                pass
+
+            try:
+                res = await conn.exec_driver_sql("PRAGMA table_info(messages)")
+                existing_cols = {row[1] for row in res.fetchall()}
+                if "token_count" not in existing_cols:
+                    await conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN token_count INTEGER")
+            except Exception:
                 pass
 
         await conn.run_sync(Base.metadata.create_all)

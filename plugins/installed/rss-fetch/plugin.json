@@ -1,0 +1,10 @@
+{
+  "id": "rss-fetch",
+  "name": "RSS Fetch",
+  "version": "0.1.0",
+  "description": "Fetch and list entries from an RSS/Atom feed (e.g., Hacker News).",
+  "entrypoint": "main.py",
+  "mcp": { "transport": "stdio" },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

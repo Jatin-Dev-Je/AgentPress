@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "argv": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        },
+        "required": ["name", "argv"],
+        "additionalProperties": false
+      },
+      "description": "List of allowed commands (name + argv)."
+    },
+    "timeout_seconds": { "type": "integer", "minimum": 1, "default": 5 }
+  },
+  "required": ["commands"],
+  "additionalProperties": false
+}

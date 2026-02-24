@@ -1,17 +1,8 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from typing import Any
-
-
-@dataclass(frozen=True)
-class AuthFailureEvent:
-    ts_ms: int
-    method: str
-    path: str
-    client_ip: str | None
-    reason: str
 
 
 class InMemoryAuditLog:

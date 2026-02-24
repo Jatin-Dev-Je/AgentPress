@@ -1,0 +1,10 @@
+{
+  "id": "health-ping",
+  "name": "Health Ping",
+  "version": "0.1.0",
+  "description": "Ping a URL and report status, latency, and a small body excerpt.",
+  "entrypoint": "main.py",
+  "mcp": { "transport": "stdio" },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

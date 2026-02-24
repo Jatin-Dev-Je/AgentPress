@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "dsn": {
+      "type": "string",
+      "description": "Postgres DSN, e.g. postgresql://user:pass@host:5432/dbname"
+    },
+    "max_rows": {
+      "type": "integer",
+      "description": "Default maximum rows returned.",
+      "default": 200,
+      "minimum": 1,
+      "maximum": 2000
+    },
+    "timeout_seconds": {
+      "type": "number",
+      "description": "Default query timeout in seconds.",
+      "default": 10,
+      "minimum": 0.5,
+      "maximum": 60
+    },
+    "statement_timeout_ms": {
+      "type": "integer",
+      "description": "Optional server-side statement_timeout in ms.",
+      "default": 10000,
+      "minimum": 100,
+      "maximum": 60000
+    }
+  },
+  "required": ["dsn"]
+}

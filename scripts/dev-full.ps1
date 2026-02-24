@@ -4,7 +4,7 @@ param(
   [switch]$AutoBackendPort,
   [ValidateSet('manual','auto','disabled')]
   [string]$ToolMode = 'manual',
-  [string]$OllamaModel = 'llama3',
+  [string]$OllamaModel = 'llama3.2:1b',
   [string]$OllamaBaseUrl = 'http://localhost:11434',
   [switch]$NoReload
 )

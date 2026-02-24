@@ -1,0 +1,10 @@
+{
+  "id": "fs-sandbox",
+  "name": "Filesystem Sandbox",
+  "version": "0.1.0",
+  "description": "List and read files within a confined root directory.",
+  "entrypoint": "main.py",
+  "mcp": { "transport": "stdio" },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

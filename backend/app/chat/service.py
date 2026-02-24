@@ -13,10 +13,120 @@ from app.chat.sse import sse
 from app.chat.auto_tools import build_react_system_prompt, build_tools_prompt_fragment, try_parse_tool_call
 from app.chat.tool_directive import parse_tool_directive
 from app.core.settings import settings
-from app.db.models import Agent, Conversation, Message, ToolCall
-from app.llm.ollama import OllamaError, chat_once, stream_chat
+from app.db.models import Agent, AgentPluginConfig, Conversation, Message, ToolCall, ToolCallAudit
+from app.llm.gemini import GeminiError
+from app.llm.ollama import OllamaError
+from app.llm import gemini as gemini_llm
+from app.llm import ollama as ollama_llm
 from app.plugins.manager import plugin_manager
 from app.security.tool_policy import is_tool_allowed
+
+
+def _approx_token_count(text: str) -> int:
+    # Lightweight approximation (does not require a tokenizer dependency).
+    # Good enough for basic analytics; can be replaced with provider-specific tokenization later.
+    return len((text or "").split())
+
+
+def _resolve_agent_llm(agent: Agent) -> tuple[str, str]:
+    """Return (provider, model) for runtime use.
+
+    Back-compat:
+    - Older UI stored provider-like values in Agent.model (e.g. "ollama").
+    - In that case, fall back to configured default model.
+    """
+
+    provider = (getattr(agent, "provider", None) or settings.llm_provider or "gemini").strip() or "gemini"
+    model = (agent.model or "").strip()
+
+    if provider == "ollama" and model.lower() in {"ollama", "openai", "anthropic"}:
+        model = (settings.ollama_model or "").strip()
+    if provider == "ollama" and not model:
+        model = (settings.ollama_model or "").strip()
+
+    if provider == "gemini" and not model:
+        model = (settings.gemini_model or "").strip()
+
+    return provider, model
+
+
+async def _chat_once(*, provider: str, model: str, messages: list[dict], temperature: float) -> str:
+    if provider == "ollama":
+        return await ollama_llm.chat_once(
+            base_url=settings.ollama_base_url,
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+    if provider == "gemini":
+        try:
+            return await gemini_llm.chat_once(
+                api_key=settings.gemini_api_key or "",
+                base_url=settings.gemini_base_url,
+                model=model,
+                messages=messages,
+                temperature=temperature,
+            )
+        except GeminiError as e:
+            if e.is_rate_limited():
+                fallback_model = (settings.ollama_model or "").strip() or "llama3.2:1b"
+                return await ollama_llm.chat_once(
+                    base_url=settings.ollama_base_url,
+                    model=fallback_model,
+                    messages=messages,
+                    temperature=temperature,
+                )
+            raise
+    raise ValueError(f"unsupported provider: {provider}")
+
+
+def _stream_chat(*, provider: str, model: str, messages: list[dict], temperature: float) -> AsyncIterator[str]:
+    if provider == "ollama":
+        return ollama_llm.stream_chat(
+            base_url=settings.ollama_base_url,
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+    if provider == "gemini":
+        async def _gen() -> AsyncIterator[str]:
+            yielded_any = False
+            try:
+                async for t in gemini_llm.stream_chat(
+                    api_key=settings.gemini_api_key or "",
+                    base_url=settings.gemini_base_url,
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                ):
+                    yielded_any = True
+                    yield t
+            except GeminiError as e:
+                if (not yielded_any) and e.is_rate_limited():
+                    fallback_model = (settings.ollama_model or "").strip() or "llama3.2:1b"
+                    async for t in ollama_llm.stream_chat(
+                        base_url=settings.ollama_base_url,
+                        model=fallback_model,
+                        messages=messages,
+                        temperature=temperature,
+                    ):
+                        yield t
+                    return
+                raise
+
+        return _gen()
+    raise ValueError(f"unsupported provider: {provider}")
+
+
+async def _get_agent_plugin_config(session: AsyncSession, *, agent_id: str, plugin_id: str) -> dict:
+    res = await session.execute(
+        select(AgentPluginConfig).where(
+            AgentPluginConfig.agent_id == agent_id,
+            AgentPluginConfig.plugin_id == plugin_id,
+        )
+    )
+    row = res.scalar_one_or_none()
+    return row.config if row else {}
 
 
 async def stream_agent_chat(
@@ -31,7 +141,13 @@ async def stream_agent_chat(
     conversation = await _get_or_create_conversation(session, agent_id, conversation_id)
 
     next_seq = await _next_seq(session, conversation.id)
-    user_msg = Message(conversation_id=conversation.id, role="user", content=user_text, seq=next_seq)
+    user_msg = Message(
+        conversation_id=conversation.id,
+        role="user",
+        content=user_text,
+        token_count=_approx_token_count(user_text),
+        seq=next_seq,
+    )
     session.add(user_msg)
     await session.commit()
     await session.refresh(user_msg)
@@ -110,6 +226,7 @@ async def stream_agent_chat(
         await session.refresh(tool_call)
 
         started_ms = int(time.time() * 1000)
+        started_at = datetime.utcnow()
         yield sse(
             "tool_call_start",
             {
@@ -126,11 +243,35 @@ async def stream_agent_chat(
                 tool_name=directive.tool_name,
                 params=directive.params,
                 agent_id=agent_id,
+                context_extra={
+                    "plugin_config": await _get_agent_plugin_config(
+                        session,
+                        agent_id=agent_id,
+                        plugin_id=directive.plugin_id,
+                    )
+                },
             )
             tool_call.status = "completed"
             tool_call.result = out
             tool_call.duration_ms = int(time.time() * 1000) - started_ms
             tool_call.ended_at = datetime.utcnow()
+
+            session.add(
+                ToolCallAudit(
+                    agent_id=agent_id,
+                    conversation_id=conversation.id,
+                    tool_call_id=tool_call.id,
+                    plugin_id=directive.plugin_id,
+                    tool_name=directive.tool_name,
+                    params=directive.params,
+                    ok=True,
+                    response=out,
+                    error=None,
+                    started_at=started_at,
+                    ended_at=tool_call.ended_at,
+                    duration_ms=tool_call.duration_ms,
+                )
+            )
             await session.commit()
 
             yield sse(
@@ -151,6 +292,23 @@ async def stream_agent_chat(
             tool_call.error = str(e)
             tool_call.duration_ms = int(time.time() * 1000) - started_ms
             tool_call.ended_at = datetime.utcnow()
+
+            session.add(
+                ToolCallAudit(
+                    agent_id=agent_id,
+                    conversation_id=conversation.id,
+                    tool_call_id=tool_call.id,
+                    plugin_id=directive.plugin_id,
+                    tool_name=directive.tool_name,
+                    params=directive.params,
+                    ok=False,
+                    response=None,
+                    error=str(e),
+                    started_at=started_at,
+                    ended_at=tool_call.ended_at,
+                    duration_ms=tool_call.duration_ms,
+                )
+            )
             await session.commit()
 
             yield sse(
@@ -167,7 +325,13 @@ async def stream_agent_chat(
 
         assistant_text = "".join(assistant_text_parts).strip()
         next_seq = await _next_seq(session, conversation.id)
-        assistant_msg = Message(conversation_id=conversation.id, role="assistant", content=assistant_text, seq=next_seq)
+        assistant_msg = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=assistant_text,
+            token_count=_approx_token_count(assistant_text),
+            seq=next_seq,
+        )
         session.add(assistant_msg)
         await session.commit()
         await session.refresh(assistant_msg)
@@ -183,15 +347,7 @@ async def stream_agent_chat(
         return
 
     if settings.tool_calling_mode == "auto":
-        if settings.llm_provider != "ollama":
-            yield sse(
-                "error",
-                {
-                    "code": "unsupported_provider",
-                    "message": f"Only llm_provider='ollama' is implemented right now (got {settings.llm_provider})",
-                },
-            )
-            return
+        provider, model = _resolve_agent_llm(agent)
 
         tools_fragment = await build_tools_prompt_fragment(
             allowed_plugins=agent.allowed_plugins,
@@ -210,14 +366,20 @@ async def stream_agent_chat(
 
         while True:
             try:
-                assistant_reply = await chat_once(
-                    base_url=settings.ollama_base_url,
-                    model=settings.ollama_model,
+                assistant_reply = await _chat_once(
+                    provider=provider,
+                    model=model,
                     messages=ollama_messages,
                     temperature=agent.temperature,
                 )
             except OllamaError as e:
                 yield sse("error", {"code": "ollama_error", "message": str(e)})
+                return
+            except GeminiError as e:
+                yield sse("error", {"code": "gemini_error", "message": str(e)})
+                return
+            except ValueError as e:
+                yield sse("error", {"code": "unsupported_provider", "message": str(e)})
                 return
 
             payload = try_parse_tool_call(assistant_reply)
@@ -296,6 +458,7 @@ async def stream_agent_chat(
             await session.refresh(tool_call)
 
             call_started_ms = int(time.time() * 1000)
+            call_started_at = datetime.utcnow()
             yield sse(
                 "tool_call_start",
                 {
@@ -315,11 +478,35 @@ async def stream_agent_chat(
                     tool_name=tool_name,
                     params=params,
                     agent_id=agent_id,
+                    context_extra={
+                        "plugin_config": await _get_agent_plugin_config(
+                            session,
+                            agent_id=agent_id,
+                            plugin_id=plugin_id,
+                        )
+                    },
                 )
                 tool_call.status = "completed"
                 tool_call.result = out
                 tool_call.duration_ms = int(time.time() * 1000) - call_started_ms
                 tool_call.ended_at = datetime.utcnow()
+
+                session.add(
+                    ToolCallAudit(
+                        agent_id=agent_id,
+                        conversation_id=conversation.id,
+                        tool_call_id=tool_call.id,
+                        plugin_id=plugin_id,
+                        tool_name=tool_name,
+                        params=params,
+                        ok=True,
+                        response=out,
+                        error=None,
+                        started_at=call_started_at,
+                        ended_at=tool_call.ended_at,
+                        duration_ms=tool_call.duration_ms,
+                    )
+                )
                 await session.commit()
 
                 yield sse(
@@ -350,6 +537,23 @@ async def stream_agent_chat(
                 tool_call.error = str(e)
                 tool_call.duration_ms = int(time.time() * 1000) - call_started_ms
                 tool_call.ended_at = datetime.utcnow()
+
+                session.add(
+                    ToolCallAudit(
+                        agent_id=agent_id,
+                        conversation_id=conversation.id,
+                        tool_call_id=tool_call.id,
+                        plugin_id=plugin_id,
+                        tool_name=tool_name,
+                        params=params,
+                        ok=False,
+                        response=None,
+                        error=str(e),
+                        started_at=call_started_at,
+                        ended_at=tool_call.ended_at,
+                        duration_ms=tool_call.duration_ms,
+                    )
+                )
                 await session.commit()
 
                 yield sse(
@@ -366,7 +570,13 @@ async def stream_agent_chat(
 
         assistant_text = "".join(assistant_text_parts).strip()
         next_seq = await _next_seq(session, conversation.id)
-        assistant_msg = Message(conversation_id=conversation.id, role="assistant", content=assistant_text, seq=next_seq)
+        assistant_msg = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=assistant_text,
+            token_count=_approx_token_count(assistant_text),
+            seq=next_seq,
+        )
         session.add(assistant_msg)
         await session.commit()
         await session.refresh(assistant_msg)
@@ -381,15 +591,7 @@ async def stream_agent_chat(
         )
         return
 
-    if settings.llm_provider != "ollama":
-        yield sse(
-            "error",
-            {
-                "code": "unsupported_provider",
-                "message": f"Only llm_provider='ollama' is implemented right now (got {settings.llm_provider})",
-            },
-        )
-        return
+    provider, model = _resolve_agent_llm(agent)
 
     ollama_messages: list[dict] = []
     if agent.system_prompt:
@@ -398,9 +600,9 @@ async def stream_agent_chat(
 
     started_ms = int(time.time() * 1000)
     try:
-        async for token in stream_chat(
-            base_url=settings.ollama_base_url,
-            model=settings.ollama_model,
+        async for token in _stream_chat(
+            provider=provider,
+            model=model,
             messages=ollama_messages,
             temperature=agent.temperature,
         ):
@@ -409,10 +611,22 @@ async def stream_agent_chat(
     except OllamaError as e:
         yield sse("error", {"code": "ollama_error", "message": str(e)})
         return
+    except GeminiError as e:
+        yield sse("error", {"code": "gemini_error", "message": str(e)})
+        return
+    except ValueError as e:
+        yield sse("error", {"code": "unsupported_provider", "message": str(e)})
+        return
 
     assistant_text = "".join(assistant_text_parts).strip()
     next_seq = await _next_seq(session, conversation.id)
-    assistant_msg = Message(conversation_id=conversation.id, role="assistant", content=assistant_text, seq=next_seq)
+    assistant_msg = Message(
+        conversation_id=conversation.id,
+        role="assistant",
+        content=assistant_text,
+        token_count=_approx_token_count(assistant_text),
+        seq=next_seq,
+    )
     session.add(assistant_msg)
     await session.commit()
     await session.refresh(assistant_msg)

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "description": "Optional GitHub token (PAT). If unset, only public repositories can be accessed (and rate limits are lower)."
+    },
+    "api_base": {
+      "type": "string",
+      "description": "GitHub API base URL.",
+      "default": "https://api.github.com"
+    },
+    "default_repo": {
+      "type": "string",
+      "description": "Optional default repo in the form owner/repo (used when repo is omitted)."
+    },
+    "user_agent": {
+      "type": "string",
+      "default": "agentpress-github-issues/0.1.0"
+    },
+    "max_items": {
+      "type": "integer",
+      "default": 50,
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "required": []
+}

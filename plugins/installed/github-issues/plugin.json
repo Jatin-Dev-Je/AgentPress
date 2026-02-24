@@ -1,0 +1,12 @@
+{
+  "id": "github-issues",
+  "name": "GitHub Issues",
+  "version": "0.1.0",
+  "description": "List and fetch GitHub issues for a repository via the GitHub REST API.",
+  "entrypoint": "main.py",
+  "mcp": {
+    "transport": "stdio"
+  },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

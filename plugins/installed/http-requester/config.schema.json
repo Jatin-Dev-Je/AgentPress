@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "allowed_bases": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "minItems": 1,
+      "description": "List of allowed base URLs, e.g. https://api.github.com"
+    }
+  },
+  "required": ["allowed_bases"],
+  "additionalProperties": false
+}

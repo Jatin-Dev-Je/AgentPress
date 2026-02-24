@@ -1,0 +1,10 @@
+{
+  "id": "shell-palette",
+  "name": "Shell Palette",
+  "version": "0.1.0",
+  "description": "Run a predefined, read-only command palette safely.",
+  "entrypoint": "main.py",
+  "mcp": { "transport": "stdio" },
+  "isolation": "shared",
+  "config_schema": "config.schema.json"
+}

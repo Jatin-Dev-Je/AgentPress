@@ -3,7 +3,7 @@ param(
   [switch]$AutoPort,
   [ValidateSet('manual','auto','disabled')]
   [string]$ToolMode = 'manual',
-  [string]$OllamaModel = 'llama3',
+  [string]$OllamaModel = 'llama3.2:1b',
   [string]$OllamaBaseUrl = 'http://127.0.0.1:11434',
   [switch]$NoReload
 )
@@ -43,7 +43,7 @@ Push-Location $BackendDir
 try {
   $env:AGENTPRESS_DATABASE_URL = "sqlite+aiosqlite:///../.data/agentpress.db"
   $env:AGENTPRESS_TOOL_CALLING_MODE = $ToolMode
-  $env:AGENTPRESS_LLM_PROVIDER = "ollama"
+  $env:AGENTPRESS_LLM_PROVIDER = "gemini"
   $env:AGENTPRESS_OLLAMA_MODEL = $OllamaModel
   $env:AGENTPRESS_OLLAMA_BASE_URL = $OllamaBaseUrl
   $uvicornArgs = @('app.main:app', '--port', "$Port")
